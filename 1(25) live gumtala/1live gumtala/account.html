@@ -1,0 +1,2361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- ============================================================
+     PWA / installable home-screen icon
+     manifest.json + icons/ hold the actual assets; sw.js (registered
+     from loader.js, already on every page) is what makes Chrome/
+     Android offer the automatic install prompt. The apple-* meta
+     tags below are iOS's separate, manifest-independent mechanism
+     for Add to Home Screen.
+     ============================================================ -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#16233B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gumtala">
+<title>My Account — Gumtala</title>
+<meta name="description" content="View your account role, approval status and news submissions.">
+
+<!-- ============================================================
+     IN-PAGE STYLESHEET
+     All CSS for the whole site lives here, inside this one page.
+     It's the same block on every page (see the comments inside it
+     for a full section-by-section explanation).
+     ============================================================ -->
+<style>
+/* ======================================================================
+   GUMTALA VILLAGE SITE — STYLESHEET
+   ======================================================================
+   This CSS is inlined into a <style> block at the top of every page
+   (index.html, about.html, gallery.html, etc.) instead of living in
+   its own .css file. That means every page is a single self-contained
+   file — you can copy just one .html file and it will still look right.
+
+   The file is organised top to bottom as:
+   1. Fonts + design tokens (CSS variables) — the palette & type system
+   2. Base element resets (body, headings, links, images)
+   3. Emergency utility bar (the red strip pinned above the header)
+   4. Header / navigation (including the dropdown "Community"/"Visit" menus)
+   5. Arch-motif section dividers (the scalloped strip between sections)
+   6. Hero banner (home page) + page banners (every other page)
+   7. Generic section spacing + "on-paper" (light) section variant
+   8. Card grids (landmarks, attractions, products)
+   9. Announcement list (news & events)
+   10. Directory grid + contact/office-hours table
+   11. Buttons
+   12. Map/location block (contact + about pages)
+   13. Contact form
+   14. Footer
+   15. Gallery grid
+   16. Emergency band + emergency numbers
+   17. Council/notable-people cards
+   18. Social icon row (Facebook / WhatsApp)
+   19. English/Urdu language-toggle show/hide rules
+   20. Reduced-motion accessibility override
+   ====================================================================== */
+
+/* Import three Google Fonts:
+   - Bricolage Grotesque: bold display face for headings (the "loud",
+     hand-painted-signage feeling instead of a generic serif)
+   - Work Sans: body copy, clean and easy to read at small sizes
+   - JetBrains Mono: small uppercase "eyebrow" labels and numbers,
+     gives a stamped/ticket-like accent typical of travel & map graphics */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ----------------------------------------------------------------------
+   1. DESIGN TOKENS
+   Every colour, radius and max-width used anywhere on the site is
+   defined once here as a CSS custom property (variable). Change a
+   value here and it updates everywhere the variable is used —
+   no need to hunt through the file for hard-coded colours.
+   ---------------------------------------------------------------------- */
+:root{
+  --night: #16233B;      /* primary dark background (header, footer, dark sections) */
+  --night-2: #1F324D;    /* slightly lighter dark, used for cards sitting on --night */
+  --night-3: #2A3F5C;    /* lightest of the three darks, used for icon tiles/wells */
+  --paper: #F6EEDC;      /* warm off-white used for text ON dark backgrounds */
+  --paper-2: #FBF6EA;    /* near-white, used for card backgrounds on light sections */
+  --gold: #F2A93B;       /* marigold accent — eyebrows, tags, dividers */
+  --coral: #E1613D;      /* rickshaw-red accent — buttons, second divider colour */
+  --teal: #4FA3AE;       /* canal-blue accent, used sparingly (hero water line) */
+  --success: #4C9A6B;    /* moderate green — approve actions, "approved/published" status pills */
+  --ink: #F6EEDC;        /* default text colour on dark backgrounds */
+  --ink-dark: #241809;   /* default text colour on light/paper backgrounds */
+  --muted: #A9B4C4;      /* secondary/greyed text on dark backgrounds */
+  --muted-dark: #6B5A3D; /* secondary/greyed text on light backgrounds */
+  --line: rgba(246,238,220,0.16);      /* hairline borders on dark backgrounds */
+  --line-dark: rgba(36,24,9,0.14);     /* hairline borders on light backgrounds */
+  --radius: 14px;        /* standard corner radius for cards/panels */
+  --max: 1120px;          /* max content width, keeps lines readable on wide screens */
+}
+
+/* ----------------------------------------------------------------------
+   2. BASE RESETS
+   ---------------------------------------------------------------------- */
+*{box-sizing:border-box;} /* padding/border included in element width, avoids layout surprises */
+html{scroll-behavior:smooth;} /* smooth-scrolls to in-page anchors, overridden below for accessibility */
+body{
+  margin:0;
+  background:var(--night);
+  color:var(--ink);
+  font-family:'Work Sans', sans-serif;
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+
+h1,h2,h3{
+  font-family:'Bricolage Grotesque', sans-serif;
+  font-weight:700;
+  line-height:1.08;
+  margin:0 0 0.4em;
+  letter-spacing:-0.01em;
+}
+/* clamp() makes headings fluidly scale between a minimum and maximum
+   size depending on viewport width, instead of jumping at breakpoints */
+h1{font-size:clamp(2.4rem,6vw,4.6rem); font-weight:800;}
+h2{font-size:clamp(1.6rem,3.2vw,2.4rem);}
+h3{font-size:1.25rem;}
+p{margin:0 0 1em;}
+a{color:inherit;} /* links inherit surrounding text colour by default, styled explicitly where needed */
+img{max-width:100%; display:block;}
+
+/* Small uppercase mono label used above most section headings,
+   e.g. "WELCOME", "LANDMARKS" — a recurring signature element */
+.eyebrow{
+  font-family:'JetBrains Mono', monospace;
+  font-size:0.72rem;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--gold);
+  display:flex;
+  align-items:center;
+  gap:0.6em;
+  margin-bottom:0.9em;
+}
+.eyebrow::before{content:''; width:22px; height:1px; background:var(--gold);}
+.on-paper .eyebrow{color:var(--coral);}
+.on-paper .eyebrow::before{background:var(--coral);}
+
+.wrap{max-width:var(--max); margin:0 auto; padding:0 28px;}
+
+:focus-visible{outline:2px solid var(--gold); outline-offset:3px;}
+
+/* ---------- utility bar ----------
+   Thin coral strip pinned above the header on every page, always
+   showing the national emergency numbers so they're never more than
+   one glance away, with a link through to the full emergency page. */
+.utility-bar{
+  background:var(--coral); color:var(--paper-2);
+  font-family:'JetBrains Mono', monospace; font-size:0.7rem;
+  letter-spacing:0.03em;
+}
+.utility-bar .wrap{
+  display:grid; grid-template-columns:1fr auto 1fr;
+  align-items:center; height:32px; gap:16px;
+}
+.utility-bar a{color:var(--paper-2); text-decoration:underline; font-weight:500;}
+.utility-bar .ub-nums{justify-self:start; display:flex; gap:14px; flex-wrap:wrap;}
+.utility-bar .ub-health{justify-self:center;}
+.utility-bar .ub-emergency{justify-self:end;}
+
+/* Mobile: drop the numbers entirely, Health left / Emergency right */
+@media (max-width:600px){
+  .utility-bar .wrap{grid-template-columns:1fr 1fr;}
+  .utility-bar .ub-nums{display:none;}
+  .utility-bar .ub-health{justify-self:start;}
+  .utility-bar .ub-emergency{justify-self:end;}
+}
+
+/* ---------- header / nav ----------
+   Sticky header (position:sticky keeps it visible while scrolling).
+   Two nav item types:
+   - plain <a> links (Home, About, Gallery...)
+   - "has-dropdown" <li> items (Community, Visit) containing a <button
+     class="nav-parent"> and a hidden .dropdown panel. The button has
+     no href — JavaScript toggles an "open" class on the parent <li>
+     to show/hide the dropdown (see the inline <script> at the bottom
+     of the page for the click handling). CSS just says "show the
+     .dropdown when its parent .has-dropdown has .open". */
+.site-header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(22,35,59,0.92);
+  backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);
+}
+.site-header .wrap{
+  display:flex; align-items:center; justify-content:space-between;
+  height:76px;
+}
+.brand{display:flex; align-items:center; gap:10px; text-decoration:none;}
+.brand-mark{width:30px; height:30px; flex-shrink:0;}
+.brand-name{
+  font-family:'Bricolage Grotesque', sans-serif;
+  font-style:italic; font-weight:700;
+  font-size:1.35rem; color:var(--paper);
+  letter-spacing:-0.01em;
+}
+.nav-and-actions{display:flex; align-items:center; gap:1.8rem;}
+.nav-links{display:flex; align-items:center; gap:1.8rem; list-style:none; margin:0; padding:0;}
+/* Notification bell + account icon — a sibling of .nav-links (not
+   inside it) specifically so they stay visible on mobile, pinned next
+   to the hamburger, even while .nav-links itself is collapsed. See the
+   header comment above for why. */
+.header-actions{display:flex; align-items:center; gap:1.8rem;}
+.nav-links a{
+  text-decoration:none; color:var(--muted);
+  font-size:0.85rem; letter-spacing:0.06em; text-transform:uppercase;
+  font-weight:500; padding-bottom:6px; border-bottom:2px solid transparent;
+  transition:color .15s, border-color .15s;
+}
+.nav-links a:hover{color:var(--paper);}
+.nav-links a[aria-current="page"]{color:var(--gold); border-color:var(--coral);}
+.nav-parent.active-group{color:var(--gold); border-color:var(--coral);}
+.has-dropdown{position:relative;}
+.nav-parent{
+  background:none; border:none; cursor:pointer; padding:0 0 6px;
+  display:flex; align-items:center; gap:5px;
+  color:var(--muted); font-family:'Work Sans', sans-serif;
+  font-size:0.85rem; letter-spacing:0.06em; text-transform:uppercase; font-weight:500;
+  border-bottom:2px solid transparent;
+}
+.nav-parent:hover{color:var(--paper);}
+.nav-parent .chev{width:8px; height:8px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg); margin-top:-3px; transition:transform .15s;}
+.has-dropdown.open .nav-parent .chev{transform:rotate(-135deg); margin-top:2px;}
+.dropdown{
+  position:absolute; top:calc(100% + 10px); left:-14px;
+  background:var(--night-2); border:1px solid var(--line); border-radius:10px;
+  padding:8px; min-width:210px; display:none; flex-direction:column; gap:2px;
+  box-shadow:0 12px 28px rgba(0,0,0,0.28); z-index:60;
+}
+.has-dropdown.open .dropdown{display:flex;}
+.dropdown a{
+  text-transform:none; letter-spacing:0; font-size:0.88rem; border-bottom:none;
+  padding:9px 12px; border-radius:7px; color:var(--muted);
+}
+.dropdown a:hover{background:var(--night-3); color:var(--paper);}
+/* "Be a member" call-to-action in the nav — a small circular icon
+   button (profile silhouette) rather than a text pill, so it reads
+   as a persistent "sign up / your account" affordance rather than
+   competing with the Emergency link in the utility bar above.
+   Links to the sign-up tab on login.html. */
+.member-pill{
+  width:34px; height:34px; border-radius:50%;
+  background:var(--gold) !important; color:var(--night) !important;
+  display:inline-flex !important; align-items:center; justify-content:center;
+  border-bottom:none !important; padding:0 !important;
+}
+.member-pill:hover{background:#d99327 !important; color:var(--night) !important;}
+.nav-toggle{
+  display:none; background:none; border:1px solid var(--line); border-radius:8px;
+  width:42px; height:38px; color:var(--paper); cursor:pointer;
+}
+.nav-toggle span, .nav-toggle span::before, .nav-toggle span::after{
+  content:''; display:block; width:18px; height:2px; background:var(--paper);
+  margin:0 auto; position:relative; transition:transform .2s;
+}
+.nav-toggle span::before{position:absolute; top:-6px;}
+.nav-toggle span::after{position:absolute; top:6px;}
+
+@media (max-width:820px){
+  /* .nav-and-actions still lays its 3 children out left-to-right (it's
+     the .header-actions + .nav-toggle pair that visually matters here,
+     since .nav-links takes itself out of this flow via position:absolute
+     below) — just with a tighter gap that suits the compact mobile bar. */
+  .nav-and-actions{gap:12px;}
+  .header-actions{gap:12px;}
+  .nav-links{
+    position:absolute; top:76px; left:0; right:0;
+    background:var(--night-2); flex-direction:column; align-items:stretch; gap:0;
+    border-bottom:1px solid var(--line);
+    max-height:0; overflow:hidden; overflow-y:auto;
+  }
+  .nav-links.open{max-height:80vh;}
+  .nav-links a{display:block; padding:16px 28px; border-bottom:1px solid var(--line); border-left:2px solid transparent;}
+  .nav-links a[aria-current="page"]{border-left-color:var(--coral); border-bottom-color:var(--line);}
+  .nav-parent{width:100%; padding:16px 28px; border-bottom:1px solid var(--line); border-left:2px solid transparent; justify-content:space-between;}
+  .nav-parent.active-group{border-left-color:var(--coral); border-bottom-color:var(--line);}
+  .dropdown{position:static; box-shadow:none; border:none; border-radius:0; background:var(--night); display:none; min-width:0; padding:0;}
+  .has-dropdown.open .dropdown{display:flex;}
+  .dropdown a{padding:14px 40px; border-bottom:1px solid var(--line); border-radius:0;}
+  .nav-toggle{display:block;}
+}
+
+/* ---------- arch divider (signature motif) ----------
+   Thin horizontal strips of repeating scalloped arches used between
+   sections — a nod to both mosque-arch architecture and the painted
+   trim seen on Pakistani "truck art". Each divider is an inline
+   <svg> with its own small tiling <pattern> (see the HTML), this
+   class just controls the strip's height and removes default fill. */
+.arch-divider{width:100%; height:34px; display:block;}
+.arch-divider path{fill:none;}
+
+/* ---------- hero ----------
+   Full-width banner on the home page only: dark gradient background
+   with an inline SVG skyline (sun, fields, canal, mosque silhouettes)
+   sitting behind the headline text. */
+.hero{
+  position:relative; overflow:hidden;
+  background:linear-gradient(180deg, var(--night) 0%, var(--night-2) 100%);
+  padding:64px 0 0;
+}
+.hero-inner{
+  max-width:var(--max); margin:0 auto; padding:0 28px 40px;
+  display:grid; gap:18px;
+}
+.hero .eyebrow{margin-bottom:0.6em;}
+.hero h1{color:var(--paper); margin-bottom:0.2em;}
+.hero h1 em{
+  font-style:italic; color:var(--gold);
+}
+.hero-tagline{
+  max-width:560px; color:var(--muted); font-size:1.1rem;
+}
+.stat-row{
+  display:flex; flex-wrap:wrap; gap:0.5em 1.4em;
+  font-family:'JetBrains Mono', monospace; font-size:0.78rem;
+  letter-spacing:0.05em; text-transform:uppercase; color:var(--muted);
+  margin-top:0.6em;
+}
+.stat-row b{color:var(--paper); font-weight:500;}
+.hero-scene{width:100%; height:auto; display:block;}
+
+.page-banner{
+  background:var(--night-2);
+  padding:56px 0 40px;
+}
+.page-banner h1{color:var(--paper);}
+.page-banner p{color:var(--muted); max-width:600px; font-size:1.05rem;}
+
+/* ---------- sections ---------- */
+section{padding:64px 0;}
+.on-paper{background:var(--paper); color:var(--ink-dark);}
+.on-paper h1, .on-paper h2, .on-paper h3{color:var(--ink-dark);}
+.on-paper p{color:var(--muted-dark);}
+.lede{font-size:1.15rem; max-width:680px; color:inherit;}
+
+/* ---------- cards ---------- */
+.card-grid{
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:22px; margin-top:2.2rem;
+}
+@media (max-width:900px){.card-grid{grid-template-columns:1fr;}}
+.card{
+  background:var(--night-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  transition:transform .18s ease, border-color .18s ease;
+}
+.card:hover{transform:translateY(-3px); border-color:var(--gold);}
+.card-media{aspect-ratio:4/3; overflow:hidden; background:var(--night-3);}
+.card-media img{width:100%; height:100%; object-fit:cover;}
+.card-icon{
+  aspect-ratio:4/3; display:flex; align-items:center; justify-content:center;
+  background:var(--night-3);
+}
+.card-body{padding:22px 24px 26px;}
+.card-body h3{color:var(--paper); margin-bottom:0.3em;}
+.card-body p{color:var(--muted); font-size:0.95rem; margin-bottom:0;}
+.tag{
+  display:inline-block; font-family:'JetBrains Mono', monospace; font-size:0.68rem;
+  letter-spacing:0.08em; text-transform:uppercase; color:var(--night);
+  background:var(--gold); padding:3px 8px; border-radius:5px; margin-bottom:10px;
+}
+
+.on-paper .card{background:var(--paper-2); border-color:var(--line-dark);}
+.on-paper .card:hover{border-color:var(--coral);}
+.on-paper .card-icon{background:#EFE4C8;}
+.on-paper .card-body h3{color:var(--ink-dark);}
+.on-paper .card-body p{color:var(--muted-dark);}
+
+/* ---------- announcement list ---------- */
+.announce-list{display:flex; flex-direction:column; gap:0; margin-top:2rem; border-top:1px solid var(--line);}
+.announce{
+  display:grid; grid-template-columns:120px 1fr; gap:24px;
+  padding:24px 0; border-bottom:1px solid var(--line);
+}
+@media (max-width:640px){.announce{grid-template-columns:1fr;}}
+.announce-date{
+  font-family:'JetBrains Mono', monospace; font-size:0.78rem;
+  color:var(--gold); letter-spacing:0.04em; padding-top:2px;
+}
+.announce h3{margin-bottom:0.3em; color:var(--paper);}
+.announce p{color:var(--muted); margin:0;}
+.on-paper .announce{border-color:var(--line-dark);}
+.on-paper .announce-date{color:var(--coral);}
+.on-paper .announce h3{color:var(--ink-dark);}
+.on-paper .announce p{color:var(--muted-dark);}
+.on-paper .announce-list{border-color:var(--line-dark);}
+
+.placeholder-note{
+  font-family:'JetBrains Mono', monospace; font-size:0.72rem;
+  color:var(--coral); background:rgba(225,97,61,0.1);
+  border:1px dashed var(--coral); border-radius:8px;
+  padding:8px 12px; margin-top:10px; display:inline-block;
+}
+
+/* ---------- directory / contact list ---------- */
+.dir-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px 32px; margin-top:2rem;}
+@media (max-width:640px){.dir-grid{grid-template-columns:1fr;}}
+.dir-item{border-bottom:1px solid var(--line-dark); padding-bottom:14px;}
+.dir-item .role{font-family:'JetBrains Mono', monospace; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--coral);}
+.dir-item h3{margin:0.15em 0 0.15em; font-size:1.05rem;}
+.dir-item p{margin:0; color:var(--muted-dark); font-size:0.92rem;}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'Work Sans', sans-serif; font-weight:600; font-size:0.92rem;
+  padding:13px 24px; border-radius:999px; text-decoration:none;
+  border:1px solid transparent; cursor:pointer;
+}
+.btn-primary{background:var(--coral); color:var(--paper-2);}
+.btn-primary:hover{background:#c94f30;}
+.btn-ghost{background:transparent; color:var(--paper); border-color:var(--line);}
+.btn-ghost:hover{border-color:var(--gold); color:var(--gold);}
+.on-paper .btn-ghost{color:var(--ink-dark); border-color:var(--line-dark);}
+.on-paper .btn-ghost:hover{border-color:var(--coral); color:var(--coral);}
+
+/* ---------- map / location block ---------- */
+.map-block{
+  display:grid; grid-template-columns:1.1fr 0.9fr; gap:36px; align-items:center; margin-top:2rem;
+}
+@media (max-width:860px){.map-block{grid-template-columns:1fr;}}
+.map-block img{border-radius:var(--radius); border:1px solid var(--line-dark);}
+.route-list{list-style:none; margin:1.2rem 0 0; padding:0; display:flex; flex-direction:column; gap:0.9rem;}
+.route-list li{padding-left:1.4em; position:relative; color:var(--muted-dark); font-size:0.95rem;}
+.route-list li::before{content:'—'; position:absolute; left:0; color:var(--coral);}
+
+/* ---------- form ---------- */
+.contact-form{display:grid; gap:16px; max-width:560px; margin-top:2rem;}
+.field{display:flex; flex-direction:column; gap:6px;}
+.field label{font-size:0.82rem; font-weight:500; color:var(--ink-dark);}
+.field input, .field textarea{
+  font-family:'Work Sans', sans-serif; font-size:0.95rem;
+  padding:12px 14px; border-radius:9px; border:1px solid var(--line-dark);
+  background:var(--paper-2); color:var(--ink-dark);
+}
+.field textarea{resize:vertical; min-height:110px;}
+.form-note{font-size:0.82rem; color:var(--muted-dark);}
+
+/* ---------- footer ---------- */
+.site-footer{background:var(--night); border-top:1px solid var(--line); padding:48px 0 32px;}
+.footer-grid{display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr 1fr; gap:32px;}
+@media (max-width:720px){.footer-grid{grid-template-columns:1fr;}}
+.footer-grid h4{
+  font-family:'JetBrains Mono', monospace; font-size:0.72rem; text-transform:uppercase;
+  letter-spacing:0.1em; color:var(--gold); margin:0 0 0.9em;
+}
+.footer-grid ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0.6em;}
+.footer-grid a{color:var(--muted); text-decoration:none; font-size:0.92rem;}
+.footer-grid a:hover{color:var(--paper);}
+.footer-grid p{color:var(--muted); font-size:0.92rem; max-width:320px;}
+.footer-bottom{
+  margin-top:36px; padding-top:20px; border-top:1px solid var(--line);
+  display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  font-family:'JetBrains Mono', monospace; font-size:0.72rem; color:var(--muted);
+}
+
+/* ---------- gallery ---------- */
+.gallery-grid{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:2rem;
+}
+@media (max-width:760px){.gallery-grid{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:480px){.gallery-grid{grid-template-columns:1fr;}}
+.gallery-item{
+  border-radius:12px; overflow:hidden; border:1px solid var(--line-dark);
+  aspect-ratio:1/1; position:relative; background:var(--paper-2);
+}
+.gallery-item img{width:100%; height:100%; object-fit:cover;}
+.gallery-item.placeholder-tile{
+  display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px;
+  color:var(--muted-dark); font-family:'JetBrains Mono', monospace; font-size:0.7rem;
+  text-align:center; padding:16px;
+}
+
+/* ---------- emergency ---------- */
+.emergency-band{
+  background:var(--coral); color:var(--paper-2); border-radius:var(--radius);
+  padding:28px 30px; margin-top:2rem;
+}
+.emergency-band h3{color:var(--paper-2); margin-bottom:0.5em;}
+.emergency-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-top:1.4rem;}
+@media (max-width:760px){.emergency-grid{grid-template-columns:repeat(2,1fr);}}
+.emergency-item{border-left:2px solid rgba(255,255,255,0.4); padding-left:14px;}
+.emergency-item .role{font-family:'JetBrains Mono', monospace; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em; opacity:0.85;}
+.emergency-item .num{font-family:'Bricolage Grotesque', sans-serif; font-size:1.5rem; font-weight:700; margin-top:2px;}
+
+/* ---------- council / people cards ---------- */
+.person-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:2rem;}
+@media (max-width:860px){.person-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:560px){.person-grid{grid-template-columns:1fr;}}
+.person-card{
+  background:var(--night-2); border:1px solid var(--line); border-radius:var(--radius);
+  padding:22px;
+}
+.person-avatar{
+  width:52px; height:52px; border-radius:50%; background:var(--night-3);
+  display:flex; align-items:center; justify-content:center; margin-bottom:14px;
+  color:var(--gold); font-family:'Bricolage Grotesque', sans-serif; font-weight:700;
+}
+.person-card h3{color:var(--paper); font-size:1.05rem; margin-bottom:0.1em;}
+.person-card .role{font-family:'JetBrains Mono', monospace; font-size:0.7rem; color:var(--gold); text-transform:uppercase; letter-spacing:0.05em;}
+.person-card p{color:var(--muted); font-size:0.9rem; margin-top:0.6em; margin-bottom:0;}
+.on-paper .person-card{background:var(--paper-2); border-color:var(--line-dark);}
+.on-paper .person-card h3{color:var(--ink-dark);}
+.on-paper .person-card p{color:var(--muted-dark);}
+.on-paper .person-avatar{background:#EFE4C8;}
+
+/* ---------- office-hours table ---------- */
+.hours-table{width:100%; border-collapse:collapse; margin-top:1rem; max-width:420px;}
+.hours-table td{padding:8px 0; border-bottom:1px solid var(--line-dark); font-size:0.92rem; color:var(--muted-dark);}
+.hours-table td:first-child{font-weight:500; color:var(--ink-dark);}
+.hours-table td:last-child{text-align:right; font-family:'JetBrains Mono', monospace; font-size:0.82rem;}
+section:not(.on-paper) .hours-table td{color:var(--muted); border-bottom-color:var(--line);}
+section:not(.on-paper) .hours-table td:first-child{color:var(--paper);}
+
+/* ---------- social row ---------- */
+.social-row{display:flex; gap:12px; margin-top:14px;}
+.social-row a{
+  width:36px; height:36px; border-radius:50%; border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; color:var(--muted);
+  text-decoration:none;
+}
+.social-row a:hover{border-color:var(--gold); color:var(--gold);}
+
+/* Respects the OS-level "reduce motion" accessibility setting:
+   turns off smooth-scrolling and any CSS transitions/animations
+   for people who've asked their system to minimise motion. */
+/* ---------- accounts & moderation system ----------
+   Everything below supports the Firebase-powered login/roles/
+   approval features: the sign-in box, status/role "pill" badges,
+   approve/reject buttons, and the list layouts used on the Admin
+   and Moderator dashboards. */
+
+/* Centered narrow card used on login.html for the sign-in/sign-up form */
+.auth-box{
+  max-width:420px; margin:0 auto; background:var(--paper-2);
+  border:1px solid var(--line-dark); border-radius:var(--radius);
+  padding:32px;
+}
+.auth-tabs{display:flex; gap:8px; margin-bottom:22px;}
+.auth-tab{
+  flex:1; text-align:center; padding:10px; border-radius:8px;
+  font-family:'JetBrains Mono', monospace; font-size:0.75rem; text-transform:uppercase;
+  letter-spacing:0.05em; cursor:pointer; border:1px solid var(--line-dark);
+  color:var(--muted-dark); background:none;
+}
+.auth-tab.active{background:var(--night); color:var(--paper); border-color:var(--night);}
+.auth-panel{display:none;}
+.auth-panel.active{display:block;}
+
+/* Small rounded label showing a status or role, e.g. "pending",
+   "approved", "moderator" — colour depends on modifier class */
+.status-pill{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family:'JetBrains Mono', monospace; font-size:0.68rem; text-transform:uppercase;
+  letter-spacing:0.05em; padding:4px 10px; border-radius:999px;
+}
+.status-pending{background:rgba(242,169,59,0.18); color:#8a5a12;}
+.status-approved, .status-published, .status-admin, .status-moderator{background:rgba(76,154,107,0.16); color:#2f6b47;}
+.status-rejected{background:rgba(225,97,61,0.16); color:#a8391c;}
+.status-member{background:rgba(79,163,174,0.18); color:#276169;}
+/* "Self-verified" (just clicked their email link, nobody's checked
+   them yet) vs "Confirmed villager" (an admin has personally
+   recognised them) — see account.html / admin.html. */
+.status-self-verified{background:rgba(169,180,196,0.22); color:#4a5568;}
+.status-villager-confirmed{background:rgba(76,154,107,0.16); color:#2f6b47;}
+
+/* On dark backgrounds the same pills need lighter text for contrast */
+section:not(.on-paper) .status-pending{color:#F2A93B;}
+section:not(.on-paper) .status-approved,
+section:not(.on-paper) .status-published,
+section:not(.on-paper) .status-admin,
+section:not(.on-paper) .status-moderator{color:#7FCB9C;}
+section:not(.on-paper) .status-rejected{color:#F0876A;}
+section:not(.on-paper) .status-member{color:#8FD2DB;}
+section:not(.on-paper) .status-self-verified{color:var(--muted);}
+section:not(.on-paper) .status-villager-confirmed{color:#7FCB9C;}
+
+/* Approve / reject action buttons, used on the Moderator queue */
+.btn-approve{background:var(--success); color:var(--paper-2); border:none;}
+.btn-approve:hover{background:#3f8258;}
+.btn-reject{background:var(--coral); color:var(--paper-2); border:none;}
+.btn-reject:hover{background:#c94f30;}
+.btn-sm{padding:9px 16px; font-size:0.82rem;}
+
+/* A single row in a moderation/admin queue: the submitted content
+   on the left, status + action buttons on the right */
+.queue-list{display:flex; flex-direction:column; gap:14px; margin-top:1.6rem;}
+.queue-item{
+  background:var(--paper-2); border:1px solid var(--line-dark); border-radius:var(--radius);
+  padding:20px 22px;
+}
+.queue-item-top{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;}
+.queue-item h3{margin-bottom:0.2em; font-size:1.05rem;}
+.queue-meta{font-family:'JetBrains Mono', monospace; font-size:0.72rem; color:var(--muted-dark); margin-bottom:0.6em;}
+.queue-body{color:var(--muted-dark); font-size:0.92rem; margin:0.6em 0;}
+.queue-actions{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.queue-comment{
+  width:100%; margin-top:10px; font-family:'Work Sans', sans-serif; font-size:0.88rem;
+  padding:10px 12px; border-radius:8px; border:1px solid var(--line-dark);
+  background:#fff; color:var(--ink-dark); min-height:60px; resize:vertical;
+}
+.queue-empty{
+  color:var(--muted-dark); font-size:0.9rem; padding:20px; text-align:center;
+  border:1px dashed var(--line-dark); border-radius:var(--radius);
+}
+section:not(.on-paper) .queue-empty{color:var(--muted); border-color:var(--line);}
+
+/* Simple row layout used on the Admin dashboard's user-management list */
+.user-row{
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  padding:16px 0; border-bottom:1px solid var(--line-dark);
+}
+.user-row .who{display:flex; align-items:center; gap:12px;}
+.user-row .who-name{font-weight:600; color:var(--ink-dark);}
+.user-row .who-email{font-size:0.82rem; color:var(--muted-dark);}
+.user-row .actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+/* admin.html's "All accounts" list sits directly on the page's dark
+   background (not an .on-paper section) — without this override the
+   name/email text above (styled for light backgrounds) would be
+   near-invisible on dark navy, which is exactly the bug this fixes. */
+section:not(.on-paper) .user-row{border-bottom-color:var(--line);}
+section:not(.on-paper) .user-row .who-name{color:var(--paper);}
+section:not(.on-paper) .user-row .who-email{color:var(--muted);}
+.role-select{
+  font-family:'Work Sans', sans-serif; font-size:0.85rem; padding:8px 10px;
+  border-radius:7px; border:1px solid var(--line-dark); background:#fff; color:var(--ink-dark);
+}
+
+/* Small state banner used by pages that need to explain "you must be
+   signed in" / "your account is pending approval" / connection errors */
+.state-banner{
+  background:var(--night-2); border:1px solid var(--line); border-radius:var(--radius);
+  padding:22px 24px; margin-top:1.4rem; color:var(--muted);
+}
+.state-banner strong{color:var(--paper); display:block; margin-bottom:4px; font-family:'Bricolage Grotesque',sans-serif;}
+.on-paper .state-banner{background:var(--paper-2); border-color:var(--line-dark); color:var(--muted-dark);}
+.on-paper .state-banner strong{color:var(--ink-dark);}
+
+/* ---------- toast / popup notifications ----------
+   Small floating messages stacked bottom-right, created on demand by
+   the global showToast() function in script.js. Used after sign-in/
+   sign-up, password reset, news submission, and moderator/admin
+   actions — anywhere something just happened that the person should
+   know about, without interrupting them with a browser alert(). */
+.toast-container{
+  position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:500;
+  display:flex; flex-direction:column; gap:10px; align-items:center;
+  max-width:min(340px, calc(100vw - 40px));
+}
+.toast{
+  background:var(--night-2); color:var(--paper);
+  border:1px solid var(--line); border-left:3px solid var(--gold);
+  border-radius:10px; padding:14px 16px; font-size:0.88rem; line-height:1.4;
+  box-shadow:0 14px 30px rgba(0,0,0,0.35);
+  opacity:0; transform:translateY(-10px);
+  transition:opacity .25s ease, transform .25s ease;
+}
+.toast.show{opacity:1; transform:translateY(0);}
+.toast-success{border-left-color:var(--success);}
+.toast-error{border-left-color:var(--coral);}
+.toast-info{border-left-color:var(--gold);}
+
+/* ---------- news detail modal ----------
+   The "expand" dialog on news.html: clicking a community-submitted
+   update opens this centered overlay showing the full text and a
+   bigger image gallery, instead of the trimmed card view in the list. */
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(10,15,25,0.72);
+  display:none; align-items:center; justify-content:center;
+  z-index:400; padding:20px;
+}
+.modal-backdrop.open{display:flex;}
+.modal{
+  background:var(--paper-2); color:var(--ink-dark); border-radius:var(--radius);
+  max-width:640px; width:100%; max-height:85vh; overflow-y:auto;
+  padding:34px; position:relative;
+}
+.modal-close{
+  position:absolute; top:14px; right:14px; background:none; border:none;
+  font-size:1.8rem; line-height:1; cursor:pointer; color:var(--muted-dark); padding:4px;
+}
+.modal-close:hover{color:var(--coral);}
+.modal-title{font-size:1.5rem; margin-bottom:6px; padding-right:24px;}
+.modal-meta{font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--muted-dark); margin-bottom:14px;}
+.modal-gallery{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:18px 0;}
+.modal-gallery img{width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:10px;}
+.modal-text{color:var(--muted-dark); white-space:pre-wrap; line-height:1.7; margin:0;}
+
+/* Makes a community-submitted card in the announce list look
+   clickable — used together with a click handler that opens the
+   modal above. */
+.announce.clickable{cursor:pointer;}
+.announce.clickable:hover h3{color:var(--coral);}
+.announce-thumb{
+  width:100%; max-width:140px; aspect-ratio:4/3; object-fit:cover;
+  border-radius:8px; margin-top:10px;
+}
+
+/* ---------- image upload (contribute.html) ----------
+   Lets a member attach up to 3 photos to a news/announcement
+   submission. Selected files show as small removable previews;
+   on submit each one is compressed in the browser into a small
+   thumbnail (stored on the news document) and a moderate-size
+   full version (stored in Firestore too, in a "photos" subcollection
+   fetched only when the news modal is opened) — no Firebase Storage
+   involved, so no Blaze/billing plan is required (see firebase-shared.js). */
+.image-upload-field{
+  border:1px dashed var(--line-dark); border-radius:10px; padding:16px;
+  color:var(--muted-dark); font-size:0.85rem;
+}
+.image-upload-field input[type="file"]{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+.file-upload-btn{
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+  width:fit-content;
+}
+.file-upload-btn svg{width:16px; height:16px; flex-shrink:0;}
+.file-upload-hint{display:block; margin-top:10px; font-size:0.8rem; color:var(--muted-dark);}
+.image-preview-row{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.image-preview{
+  position:relative; width:84px; height:84px; border-radius:8px;
+  overflow:hidden; border:1px solid var(--line-dark);
+}
+.image-preview img{width:100%; height:100%; object-fit:cover; display:block;}
+.image-preview .remove-img{
+  position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.65); color:#fff;
+  border:none; border-radius:50%; width:20px; height:20px; font-size:12px;
+  cursor:pointer; line-height:1;
+}
+
+/* Small thumbnail row shown on the Moderation queue so a moderator
+   can see attached photos before approving/rejecting a submission. */
+.queue-thumbs{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+.queue-thumbs img{width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid var(--line-dark);}
+
+/* Respects the OS-level "reduce motion" accessibility setting:
+   turns off smooth-scrolling and any CSS transitions/animations
+   for people who've asked their system to minimise motion. */
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{transition:none !important; animation:none !important;}
+}
+
+</style>
+<style id="page-loader-style">
+#page-loader{position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:var(--night,#16233B); transition:opacity 0.5s ease, visibility 0.5s ease;}
+#page-loader.page-loader-hide{opacity:0; visibility:hidden; pointer-events:none;}
+.page-loader-mark{width:56px; height:56px;}
+.page-loader-mark circle{fill:none; stroke:var(--gold,#F2A93B); stroke-width:1.2; stroke-dasharray:88; stroke-dashoffset:88; animation:page-loader-draw 1.6s ease-in-out infinite;}
+.page-loader-mark path{fill:none; stroke:var(--gold,#F2A93B); stroke-width:1.2; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:page-loader-draw 1.6s ease-in-out infinite; animation-delay:0.15s;}
+@keyframes page-loader-draw{0%{stroke-dashoffset:88;} 50%{stroke-dashoffset:0;} 100%{stroke-dashoffset:-88;}}
+.page-loader-text{font-family:'Bricolage Grotesque',sans-serif; font-weight:700; letter-spacing:0.02em; color:var(--paper,#F6EEDC); font-size:1.05rem; opacity:0.9;}
+</style>
+</head>
+<body>
+<!-- Full-page branded loading overlay — see loader.js for how/when it
+     fades out. Sits here, as the very first thing in <body>, so it
+     paints before anything else on the page does. -->
+<div id="page-loader" aria-hidden="true">
+  <svg class="page-loader-mark" viewBox="0 0 30 30" aria-hidden="true">
+    <circle cx="15" cy="15" r="14"/>
+    <path d="M15 7 L15 3 M9 12 Q15 4 21 12 L21 22 L9 22 Z"/>
+  </svg>
+  <span class="page-loader-text">Gumtala</span>
+</div>
+<!-- ============================================================
+     UTILITY BAR — always-visible emergency numbers, pinned above
+     the header on every page. Links to the full emergency.html page.
+     ============================================================ -->
+<div class="utility-bar">
+  <div class="wrap">
+    <div class="ub-nums"><span>Police 15</span><span>Rescue 1122</span><span>Fire 16</span></div>
+    <a class="ub-health" href="health.html">HEALTH</a>
+    <a class="ub-emergency" href="emergency.html">EMERGENCY</a>
+  </div>
+</div>
+
+<!-- ============================================================
+     SITE HEADER — logo/brand mark, sticky navigation with the
+     "Community" and "Visit" dropdown menus, mobile hamburger
+     button, emergency quick-link and the EN/Urdu language toggle.
+     This exact block is repeated at the top of every page.
+     ============================================================ -->
+<header class="site-header">
+  <div class="wrap">
+    <!-- Brand mark: links back to the homepage from any page -->
+    <a href="index.html" class="brand">
+      <svg class="brand-mark" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="14" fill="none" stroke="var(--gold)" stroke-width="1.2"/>
+        <path d="M15 7 L15 3 M9 12 Q15 4 21 12 L21 22 L9 22 Z" fill="none" stroke="var(--gold)" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand-name">Gumtala</span>
+    </a>
+    <!-- Nav links + notification bell/account icon + hamburger button,
+         grouped so the bell/account icon stay visible next to the
+         hamburger on mobile even though the nav list itself collapses. -->
+    <div class="nav-and-actions">
+    <!-- Main navigation list -->
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li class="has-dropdown">
+        <button class="nav-parent" aria-expanded="false" aria-haspopup="true">
+          <span>About</span><span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="dropdown">
+          <a href="about.html">Overview</a>
+          <a href="history.html">History</a>
+          <a href="faith.html">Faith</a>
+          <a href="education.html">Education</a>
+          <a href="sports.html">Sports</a>
+        </div>
+      </li>
+      <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="landmarks.html">Landmarks</a></li>
+      <li class="has-dropdown">
+        <button class="nav-parent" aria-expanded="false" aria-haspopup="true">
+          <span>Community</span><span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="dropdown">
+          <a href="council.html">Local council</a>
+          <a href="directory.html">Directory</a>
+          <a href="achievements.html">Achievements</a>
+          <a href="in-memoriam.html">In Memoriam</a>
+        </div>
+      </li>
+      <li><a href="news.html">News</a></li>
+      <li class="has-dropdown">
+        <button class="nav-parent" aria-expanded="false" aria-haspopup="true">
+          <span>Visit</span><span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="dropdown">
+          <a href="attractions.html">Attractions</a>
+          <a href="food-point.html">Food Point</a>
+          <a href="products.html">Local products</a>
+          <a href="weather.html">Weather</a>
+        </div>
+      </li>
+      <li><a href="contact.html">Contact</a></li>
+    </ul>
+    <!-- Notification bell (injected by notifications.js) + account icon —
+         kept outside .nav-links so they stay visible on mobile even when
+         the hamburger menu is collapsed. -->
+    <div class="header-actions">
+      <a class="member-pill" href="account.html" aria-label="Account" title="Account">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
+        </svg>
+      </a>
+    </div>
+    <!-- Hamburger button, only visible on narrow/mobile screens (see CSS) -->
+    <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <span></span>
+    </button>
+    </div>
+  </div>
+</header>
+<!-- ===================== END SITE HEADER ===================== -->
+
+<!-- ============================================================
+     PAGE CONTENT — everything below is unique to this page.
+     ============================================================ -->
+<!-- SECTION: My account -->
+<section class="page-banner">
+  <div class="wrap">
+    <p class="eyebrow">Account</p>
+    <h1>My account</h1>
+    <p>Your role, approval status, and (for members) your submitted news.</p>
+  </div>
+</section>
+
+<!-- SECTION: content section -->
+<section class="on-paper">
+  <div class="wrap">
+    <!-- Signed-in identity + breadcrumb line, shown only once we know
+         who's signed in (see the small script near the end of the
+         page). Signed-out visitors never see this. -->
+    <div id="page-badge" style="display:none; margin-bottom:1.6rem;">
+      <p class="eyebrow" id="page-badge-name" style="margin-bottom:2px;"></p>
+      <p style="font-family:'JetBrains Mono', monospace; font-size:0.76rem; color:var(--muted-dark);" id="page-badge-crumbs"></p>
+    </div>
+    <!-- Shown while we don't yet know if someone is signed in -->
+    <div id="acct-loading" class="state-banner"><strong>Loading&hellip;</strong>Checking your sign-in status.</div>
+
+    <!-- Shown if nobody is signed in -->
+    <div id="acct-signed-out" class="state-banner" style="display:none;">
+      <strong>You're not signed in</strong>
+      <a href="login.html" class="btn btn-primary" style="margin-top:12px;">Sign in / sign up</a>
+    </div>
+
+    <!-- Shown once we have a signed-in user + their profile -->
+    <div id="acct-signed-in" style="display:none;">
+      <div class="person-card" style="max-width:560px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <h3 id="acct-name" style="font-size:1.3rem; margin-bottom:0;"></h3>
+            <button type="button" id="acct-name-edit-btn" class="btn btn-ghost btn-sm">Edit name</button>
+          </div>
+          <div id="acct-stat-pills" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+        <!-- Inline name editor, hidden until "Edit name" is clicked. Once
+             every 15 days, same rule firestore.rules enforces server-side
+             — see the account.html script for the actual cooldown check,
+             and firestore.rules for why it can't just be trusted from
+             here alone. -->
+        <div id="acct-name-edit" style="display:none; margin:8px 0 4px;">
+          <input type="text" id="acct-name-input" maxlength="80" style="max-width:280px; margin-right:6px;">
+          <button type="button" id="acct-name-save" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" id="acct-name-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+          <p class="role" id="acct-name-cooldown-note" style="display:none; margin-top:6px;"></p>
+        </div>
+        <p class="role" id="acct-email" style="margin-bottom:10px;"></p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <span class="status-pill" id="acct-role-pill"></span>
+          <span class="status-pill" id="acct-status-pill"></span>
+          <!-- "Self-verified" vs "Confirmed villager" — purely informational
+               for admins (see admin.html); toggled only by an admin, never
+               by the account holder themself. Sign-up no longer needs
+               admin approval, so this is what restores admin visibility
+               into who's actually a known community member. -->
+          <span class="status-pill" id="acct-villager-pill"></span>
+          <button id="acct-signout" class="btn btn-ghost btn-sm">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Shown if the person is signed in to Firebase Auth but has no
+           matching Firestore profile doc (e.g. sign-up's Firestore
+           write failed right after the Auth account was created —
+           most commonly because firestore.rules hadn't been deployed
+           yet at that moment). "Set up your profile" re-runs that
+           write now, using today's rules. If that ALSO fails for some
+           other reason, the plain-text line underneath gives them
+           something exact to relay through contact.html so whoever's
+           helping them can search for this specific message. -->
+      <div id="acct-no-profile" class="state-banner" style="display:none; margin-top:1.6rem; border-color:var(--coral);">
+        <strong>No profile record found.</strong>
+        Click the Button <mark>Set up your Profile</mark> 2 to 3 times;Then VERIFY your Email. If cann't create account; report this issue through <a href="contact.html">Contact</a> page.
+        <div><button type="button" id="acct-fix-profile" class="btn btn-ghost btn-sm" style="margin-top:12px;">Set up your profile</button></div>
+      </div>
+
+      <!-- Email verification notice — shown until the person clicks
+           the link Firebase emailed them at sign-up. Independent of
+           the restricted-account notice below: someone can be fully
+           verified and later still lapse into "restricted" if they
+           never click the day-3 reconfirmation link. -->
+      <div id="acct-verify-note" class="state-banner" style="display:none; margin-top:1.6rem; border-color:var(--gold);">
+        <strong>Verify your email</strong>
+        We sent a verification link to your email when you signed up.It may be in <mark>JUNK/SPAM</mark> folder, must check there.<br> Some features (like submitting news) need a verified email first.
+        <div><button type="button" id="acct-resend-verify" class="btn btn-ghost btn-sm" style="margin-top:12px;">Resend verification email</button></div>
+      </div>
+
+      <!-- Restricted notice — shown once 3+ days have passed since
+           first verifying with no second (day-3) reconfirmation click
+           yet. A fresh reconfirmation email is fired automatically the
+           moment this state is detected (see checkVerificationTimers
+           in the shared script), and this button lets them fire
+           another one manually too (spam folder, lost email, etc). -->
+      <div id="acct-restricted-note" class="state-banner" style="display:none; margin-top:1.6rem; border-color:var(--coral);">
+        <strong>Please reconfirm your email</strong>
+        It's been a few days since you verified your email, so we've sent a new confirmation link as a quick security check &mdash; click it to restore full access. It may be in your <mark>JUNK/SPAM</mark> folder.
+        <div><button type="button" id="acct-resend-reverify" class="btn btn-ghost btn-sm" style="margin-top:12px;">Resend the link</button></div>
+      </div>
+
+      <!-- Pending notice — rare now that sign-ups auto-approve, but
+           still shown if an admin manually sets someone back to
+           "pending" or "rejected" from admin.html. -->
+      <div id="acct-pending-note" class="state-banner" style="display:none; margin-top:1.6rem;">
+        <strong>Account not active</strong>
+        Your account isn't currently approved. Contact an admin if you think this is a mistake.
+      </div>
+
+      <!-- Role-based quick links -->
+      <div id="acct-links" style="margin-top:1.6rem; display:flex; gap:12px; flex-wrap:wrap;"></div>
+
+      <!-- Member's own submission history -->
+      <div id="acct-submissions-wrap" style="margin-top:2.2rem; display:none;">
+        <p class="eyebrow">Your submissions</p>
+        <h2 style="font-size:1.4rem;">News you've sent in</h2>
+        <div class="queue-list" id="acct-submissions-list"></div>
+      </div>
+
+      <!-- Member's own In Memoriam (death announcement) submissions.
+           Separate from the news list above since these carry a
+           janaza date/time that's very often unconfirmed at first —
+           the author can come back here and fill it in later, no
+           matter whether the announcement is currently pending,
+           published, or rejected. -->
+      <div id="acct-memorials-wrap" style="margin-top:2.2rem; display:none;">
+        <p class="eyebrow">Your submissions</p>
+        <h2 style="font-size:1.4rem;">Death announcements you've sent in</h2>
+        <div class="queue-list" id="acct-memorials-list"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- decorative arch-motif divider between sections -->
+<svg class="arch-divider" viewBox="0 0 1200 34" preserveAspectRatio="none" aria-hidden="true">
+  <defs><pattern id="archTilePopup" width="40" height="34" patternUnits="userSpaceOnUse">
+    <path d="M0 34 L0 16 Q10 2 20 16 Q30 2 40 16 L40 34 Z" fill="var(--gold)" opacity="0.55"/>
+  </pattern></defs>
+  <rect width="1200" height="34" fill="url(#archTilePopup)"/>
+</svg>
+
+<!-- SECTION: admin-only management of the site-wide welcome popup
+     shown on index.html, news.html and the account-system pages. -->
+<section class="on-paper" id="acct-popup-section" style="display:none;">
+  <div class="wrap">
+    <p class="eyebrow">Admins only</p>
+    <h2 style="font-size:1.4rem;">Homepage popup</h2>
+    <p style="color:var(--muted-dark); max-width:640px;">Shown at most once every 24 hours per visitor, on the homepage, News page, and the account-system pages. Add one or more slides &mdash; visitors flip between them with Prev/Next. Turn a slide off with "Active" instead of deleting it if you just want to pause it.</p>
+
+    <div class="queue-list" id="acct-popup-list" style="margin-top:1.2rem;"></div>
+
+    <h3 style="font-size:1.05rem; margin-top:2rem;">Add a slide</h3>
+    <form id="acct-popup-form" style="max-width:520px; display:grid; gap:16px; margin-top:1rem;">
+      <div class="field">
+        <label for="acct-popup-desc">Description</label>
+        <textarea id="acct-popup-desc" placeholder="What should this slide say?"></textarea>
+      </div>
+      <div class="field">
+        <label>Image (optional)</label>
+        <div class="image-upload-field">
+          <input id="acct-popup-image" type="file" accept="image/*">
+          <label for="acct-popup-image" class="btn btn-ghost btn-sm file-upload-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Choose photo
+          </label>
+          <span class="file-upload-hint" id="acct-popup-file-hint">No photo selected.</span>
+        </div>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary" id="acct-popup-submit-btn">Add slide</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SITE FOOTER — about blurb + social links, and four columns of
+     quick links (Explore / Community / Visit) mirroring the header's
+     navigation, plus a copyright line. Identical on every page.
+     ============================================================ -->
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h4>Gumtala</h4>
+        <p>A village in Shakargarh Tehsil, Narowal District, Punjab, Pakistan. This site is a community template &mdash; add real details, photos and contacts as they're gathered.</p>
+        <!-- Social icons: replace the "#" hrefs with the village's
+             real Facebook page and WhatsApp group invite link -->
+        <div class="social-row">
+          <a href="#" aria-label="Village Facebook page" title="Add your Facebook page link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M15 8h2V5h-2c-2 0-3.5 1.3-3.5 3.5V11H9v3h2.5v6h3v-6H17l.5-3H14.5V9c0-.6.4-1 1-1Z"/></svg>
+          </a>
+          <a href="#" aria-label="Village WhatsApp group" title="Add your WhatsApp group link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3.8-6.8L20 4l-1.2 3.8A7.96 7.96 0 0 1 20 12Z"/><path d="M9 10.5c.3 1.8 2.2 3.7 4 4 .8.1 1.7-.4 1.9-1l-1.6-1.1-.7.6c-.8-.3-1.8-1.3-2.1-2.1l.6-.7-1.1-1.6c-.6.2-1.1 1.1-1 1.9Z"/></svg>
+          </a>
+        </div>
+        <span class="placeholder-note">Add your real Facebook page and WhatsApp group links here.</span>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <ul>
+          <li><a href="about.html">About &amp; history</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="landmarks.html">Landmarks</a></li>
+          <li><a href="news.html">News &amp; events</a></li>
+          <li><a href="account.html">My account</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Community</h4>
+        <ul>
+          <li><a href="council.html">Local council</a></li>
+          <li><a href="directory.html">Directory</a></li>
+          <li><a href="emergency.html">Emergency contacts</a></li>
+          <li><a href="achievements.html">Achievements</a></li>
+          <li><a href="in-memoriam.html">In Memoriam</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Visit</h4>
+        <ul>
+          <li><a href="attractions.html">Attractions</a></li>
+          <li><a href="food-point.html">Food Point</a></li>
+          <li><a href="products.html">Local products</a></li>
+          <li><a href="weather.html">Weather</a></li>
+          <li><a href="contact.html">Contact &amp; directions</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>About</h4>
+        <ul>
+          <li><a href="history.html">History</a></li>
+          <li><a href="faith.html">Faith</a></li>
+          <li><a href="education.html">Education</a></li>
+          <li><a href="sports.html">Sports</a></li>
+          <li><a href="health.html">Health</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; Gumtala village site &mdash; 2026</span>
+      <span>Built as a starting point, ready to edit.<span class="placeholder-note" style="margin:0; padding:2px 8px; cursor: pointer;" onclick="window.location.href='account.html'">Click</span>  and Suggest Updates</span>
+    </div>
+  </div>
+</footer>
+<!-- ===================== END SITE FOOTER ===================== -->
+
+<!-- Firebase SDK (compat build - plain <script> tags, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
+<script src="notifications.js"></script>
+<script src="loader.js"></script>
+
+<!-- ============================================================
+     IN-PAGE SCRIPT
+     All JavaScript for the whole site lives here, inside this one
+     page (mobile menu, dropdown menus, language toggle, contact
+     form). See the comments inside for what each part does.
+     ============================================================ -->
+<script>
+/* ======================================================================
+   GUMTALA VILLAGE SITE — SCRIPT
+   ======================================================================
+   This JavaScript is inlined into a <script> block at the bottom of
+   every page (instead of living in its own .js file), so each HTML
+   file works completely on its own if you copy just that one file.
+
+   It does three independent jobs, each wrapped in its own block below:
+   1. Mobile hamburger menu open/close
+   2. Dropdown menus ("Community", "Visit") open/close + click-outside-to-close
+   3. Contact form — prevents an actual page reload and shows a note,
+      since there's no backend wired up yet
+   ====================================================================== */
+
+document.addEventListener('DOMContentLoaded', function () {
+
+  /* --------------------------------------------------------------
+     1. MOBILE HAMBURGER MENU
+     On small screens the nav links are hidden by CSS (max-height:0)
+     until the .nav-links element gets an "open" class. This just
+     toggles that class when the hamburger button is clicked, and
+     updates aria-expanded so screen readers announce the state.
+     -------------------------------------------------------------- */
+  var toggle = document.querySelector('.nav-toggle');
+  var links = document.querySelector('.nav-links');
+  if (toggle && links) {
+    toggle.addEventListener('click', function () {
+      var isOpen = links.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  }
+
+  /* --------------------------------------------------------------
+     2. DROPDOWN MENUS (Community / Visit)
+     Each dropdown parent is a <button class="nav-parent"> sitting
+     inside an <li class="has-dropdown">. Clicking the button toggles
+     an "open" class on that <li> — CSS shows the .dropdown panel
+     whenever its parent has that class (see styles.css comment).
+     We also close any other open dropdown first, so only one is
+     ever open at a time, and clicking anywhere else on the page
+     closes whichever dropdown is currently open.
+     -------------------------------------------------------------- */
+  document.querySelectorAll('.nav-parent').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      // Stop this click from immediately reaching the page-wide
+      // "close all dropdowns" listener registered further down.
+      e.stopPropagation();
+
+      var parentLi = btn.closest('.has-dropdown');
+      var willOpen = !parentLi.classList.contains('open');
+
+      // Close every dropdown first (so two can't be open together)...
+      document.querySelectorAll('.has-dropdown').forEach(function (li) {
+        li.classList.remove('open');
+      });
+
+      // ...then re-open this one if it wasn't already open.
+      if (willOpen) {
+        parentLi.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+
+  // Clicking anywhere else on the page (outside a dropdown button)
+  // closes any open dropdown — standard "click outside to dismiss".
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.has-dropdown').forEach(function (li) {
+      li.classList.remove('open');
+    });
+  });
+
+  /* --------------------------------------------------------------
+     3. CONTACT FORM (template only — no backend yet)
+     Stops the browser's default "reload the page and try to submit
+     to a server" behaviour, and instead just shows a status message
+     explaining that a real email service or backend needs to be
+     connected before this form can actually deliver messages.
+     -------------------------------------------------------------- */
+  var form = document.querySelector('.contact-form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault(); // stop the real form submission / page reload
+      var status = form.querySelector('.form-status');
+      if (status) {
+        status.textContent =
+          'This form is a template — connect it to an email service or backend to receive messages.';
+      }
+      showToast('Message noted — connect a backend to actually deliver it.', 'info');
+    });
+  }
+
+});
+
+/* ----------------------------------------------------------------------
+   GLOBAL TOAST / POPUP NOTIFICATIONS
+   Declared as a plain top-level function (not inside the
+   DOMContentLoaded block above) so it's available to every other
+   inline <script> on the page — including the Firebase account/
+   moderation scripts that come after this one in each page's HTML.
+   All <script> tags on a page share the same global scope, so a
+   function defined here can simply be called as showToast(...)
+   from anywhere later on the same page, with no imports needed.
+
+   Usage:  showToast('Signed in!', 'success');
+           showToast('That email is already registered.', 'error');
+           showToast('Checking your account…', 'info');   // default type
+   ---------------------------------------------------------------------- */
+function showToast(message, type) {
+  type = type || 'info';
+
+  // The little floating stack lives in the corner of the screen;
+  // create it once per page, the first time a toast is needed.
+  var container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    container.setAttribute('role', 'status');
+    container.setAttribute('aria-live', 'polite');
+    document.body.appendChild(container);
+  }
+
+  var toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  // Two-step show/hide (add "show" a moment after inserting, remove
+  // it before deleting the element) is what makes the CSS opacity/
+  // transform transition actually animate in both directions.
+  requestAnimationFrame(function () {
+    toast.classList.add('show');
+  });
+
+  setTimeout(function () {
+    toast.classList.remove('show');
+    setTimeout(function () {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 300);
+  }, 4200);
+}
+
+
+</script>
+<script>
+/* ======================================================================
+   FIREBASE SETUP — shared by every page that touches accounts, roles,
+   or the news approval workflow (login.html, account.html,
+   contribute.html, moderate.html, admin.html, and the "load live
+   updates" part of news.html).
+
+   Each of those pages pastes this exact block into its own inline
+   <script>, right before that page's own logic — that's what "self-
+   contained pages" means for the accounts system: every page carries
+   its own copy of the Firebase config and helper functions, rather
+   than importing them from a shared file.
+
+   >>> REQUIRED SETUP — read this before anything will work <<<
+   1. Create a free project at https://console.firebase.google.com
+   2. In the project: Build > Authentication > Sign-in method >
+      enable "Email/Password".
+   3. In the project: Build > Firestore Database > Create database
+      (start in production mode, pick any region). That's the only
+      database/storage product this site needs — news photos are
+      compressed in the browser and saved as base64 strings straight
+      into Firestore documents, so Firebase Storage (which requires
+      the paid Blaze plan) is never used and never needs turning on.
+   4. In Project settings > General > Your apps, add a "Web app" and
+      copy the firebaseConfig object it gives you.
+   5. Paste that object over FIREBASE_CONFIG below — in THIS file if
+      you're re-running the site generator, or directly inside every
+      page's <script> tag if you're editing the HTML by hand.
+   6. Deploy the included firestore.rules file (see SETUP-GUIDE.md) so
+      the permission checks below actually take effect.
+   7. Manually promote your own first account to "admin" — see
+      SETUP-GUIDE.md, step "Creating the first admin".
+   ====================================================================== */
+
+// ---- 1. YOUR FIREBASE PROJECT CONFIG (replace with your real values) ----
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyA3gXYIGxSMzKYyY-TpK1i05jDjaHJ8km8",
+  authDomain: "gumtala-skg.firebaseapp.com",
+  projectId: "gumtala-skg",
+  storageBucket: "gumtala-skg.firebasestorage.app",
+  messagingSenderId: "1065356501378",
+  appId: "1:1065356501378:web:ec59829f02efffbc80af9b"
+};
+
+// ---- 2. Initialise Firebase (guarded so it only runs once per page) ----
+if (!window.firebase.apps.length) {
+  window.firebase.initializeApp(FIREBASE_CONFIG);
+}
+const auth = window.firebase.auth();
+const db = window.firebase.firestore();
+
+/**
+ * True once FIREBASE_CONFIG above has been filled in with real values.
+ * Every page uses this to show a friendly "connect Firebase first"
+ * message instead of a confusing network error when the site is
+ * opened straight out of the box, before any setup has been done.
+ */
+function isFirebaseConfigured() {
+  return FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
+}
+
+/**
+ * Fetches the Firestore profile document for a signed-in user.
+ * This document (in the "users" collection, keyed by their auth uid)
+ * is where we store role ("member" / "moderator" / "admin"), status
+ * ("approved" / "pending" / "rejected" — new sign-ups now start
+ * "approved" directly, see login.html), the day-3 re-verification
+ * timer fields, and the admin-only "villagerConfirmed" badge —
+ * Firebase Authentication itself only knows email + password,
+ * nothing about any of this.
+ */
+async function getUserProfile(uid) {
+  const doc = await db.collection('users').doc(uid).get();
+  return doc.exists ? doc.data() : null;
+}
+
+/**
+ * Runs `callback(user, profile)` whenever the signed-in state changes,
+ * where `profile` is the Firestore role/status document (or null if
+ * signed out, or null if the profile doc doesn't exist yet). Also
+ * runs the day-3 re-verification check (checkVerificationTimers,
+ * below) first, so every page that calls onAuthReady automatically
+ * gets that safety net for free instead of needing its own copy of
+ * the logic.
+ * Every account-aware page calls this once on load to decide what to
+ * show — e.g. "sign in first", "restricted, please reconfirm", or
+ * the real page content.
+ */
+function onAuthReady(callback) {
+  auth.onAuthStateChanged(async function (user) {
+    if (!user) {
+      callback(null, null);
+      return;
+    }
+    try {
+      const profile = await getUserProfile(user.uid);
+      if (profile) {
+        await checkVerificationTimers(user, profile); // may mutate `profile` in place
+      }
+      callback(user, profile);
+    } catch (err) {
+      console.error('Could not load user profile:', err);
+      callback(user, null);
+    }
+  });
+}
+
+/**
+ * The day-3 email re-confirmation safety net — this is what replaces
+ * admin approval of new sign-ups (currently disabled; see login.html
+ * and firestore.rules). Runs on every onAuthReady call, for every
+ * signed-in user, on every page that pastes this shared block:
+ *
+ *   1. The FIRST time we see emailVerified == true for this account,
+ *      record firstVerifiedAt (once — never overwritten again).
+ *   2. If 3+ days have passed since firstVerifiedAt and the person
+ *      hasn't reconfirmed yet (reconfirmedAt still unset) and isn't
+ *      already flagged, mark them "restricted" (blocks new
+ *      submissions only — see isActiveMember() in firestore.rules,
+ *      and account.html / contribute.html's restricted screens) and
+ *      fire a second verification email whose link redirects back to
+ *      account.html?reverify=1 (see account.html's handling of that
+ *      query param — that's what actually sets reconfirmedAt and
+ *      lifts the restriction).
+ *
+ * Mutates the passed-in `profile` object to reflect whatever was just
+ * written, so the caller sees the current state immediately instead
+ * of one page-load stale.
+ */
+async function checkVerificationTimers(user, profile) {
+  var updates = {};
+
+  // user.emailVerified can be stale here (e.g. verified in a
+  // different tab/device) — reload() re-fetches the live value.
+  try { await user.reload(); } catch (err) { /* offline or similar — fall back to the cached value below */ }
+  var freshUser = auth.currentUser || user;
+
+  if (freshUser.emailVerified && !profile.firstVerifiedAt) {
+    updates.firstVerifiedAt = firebase.firestore.FieldValue.serverTimestamp();
+    profile.firstVerifiedAt = new Date(); // optimistic local value so the check just below can use it this same tick
+  }
+
+  var firstVerifiedDate = profile.firstVerifiedAt
+    ? (profile.firstVerifiedAt.toDate ? profile.firstVerifiedAt.toDate() : profile.firstVerifiedAt)
+    : null;
+
+  if (firstVerifiedDate && !profile.reconfirmedAt && !profile.restricted) {
+    var daysSince = (Date.now() - firstVerifiedDate.getTime()) / 86400000;
+    if (daysSince >= 3) {
+      updates.restricted = true;
+      updates.lastReverifySentAt = firebase.firestore.FieldValue.serverTimestamp();
+      profile.restricted = true;
+      sendReverificationEmail(freshUser).catch(function (err) {
+        console.error('Could not send day-3 re-verification email:', err);
+      });
+    }
+  }
+
+  if (Object.keys(updates).length) {
+    db.collection('users').doc(user.uid).update(updates).catch(function (err) {
+      console.error('Could not update verification timers:', err);
+    });
+  }
+}
+
+/** Signs the current user out and sends them back to the homepage. */
+function signOutAndRedirect() {
+  auth.signOut().then(function () {
+    window.location.href = 'index.html';
+  });
+}
+
+/**
+ * Sends (or re-sends) Firebase's built-in email verification link
+ * to the given signed-in user's address — the ORIGINAL sign-up
+ * verification, no special redirect. This is Firebase's native
+ * verification flow — a link the person clicks, not a numeric code
+ * — which is why no backend/Cloud Function is needed for it. The
+ * link itself, and its "you're verified" landing page, can be
+ * customised in the Firebase console under Authentication >
+ * Templates (see SETUP-GUIDE.md).
+ */
+function sendVerificationEmail(user) {
+  return user.sendEmailVerification();
+}
+
+/**
+ * Sends the DAY-3 RE-confirmation link — same underlying Firebase
+ * email, but with its continue-link pointed at
+ * account.html?reverify=1 so that account.html can record
+ * reconfirmedAt (and lift the restriction) once the person clicks it.
+ * Used both by the automatic day-3 check above and by the "Resend the
+ * link" button on the restricted screen (account.html / contribute.html).
+ */
+function sendReverificationEmail(user) {
+  return user.sendEmailVerification({
+    url: window.location.origin + '/account.html?reverify=1'
+  });
+}
+
+/**
+ * Checks a password against the site's minimum strength rule: at
+ * least 8 characters, containing at least one letter, one number,
+ * and one symbol. Returns a plain-English reason string if it
+ * fails, or null if the password is strong enough — callers use
+ * that to decide whether to show a toast and block submission.
+ */
+function passwordStrengthError(password) {
+  if (!password || password.length < 8) {
+    return 'Password must be at least 8 characters long.';
+  }
+  if (!/[A-Za-z]/.test(password)) {
+    return 'Password must include at least one letter.';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must include at least one number.';
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return 'Password must include at least one symbol (e.g. ! # ? %).';
+  }
+  return null;
+}
+
+/**
+ * Compresses an image File in the browser (via a <canvas>) down to a
+ * base64 JPEG data URL no larger than roughly `maxDimension` pixels
+ * on its longest side, at the given JPEG quality (0–1). Used instead
+ * of Firebase Storage: the resulting string is small enough to store
+ * directly as a Firestore field, which keeps the whole site running
+ * on the free Spark plan (Storage now requires the paid Blaze plan).
+ * Returns a Promise<string> resolving to the data URL.
+ */
+function compressImageFile(file, maxDimension, quality) {
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not read "' + file.name + '" as an image.'));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Compresses one image File into TWO versions:
+ *   - thumb: ~200px, heavily compressed (a few KB) — stored directly
+ *     on the news document itself, so list views (news.html's card
+ *     grid, the Moderation Queue) stay light no matter how many
+ *     photos accumulate across all news items.
+ *   - full:  ~900px, moderately compressed (well under Firestore's
+ *     1 MiB document limit) — stored in its OWN small document in a
+ *     "photos" subcollection under the news item, so it's only ever
+ *     fetched when someone actually opens that item's modal, not on
+ *     every list load.
+ * Returns a Promise<{thumb: string, full: string}>.
+ */
+function compressImageTwoSizes(file) {
+  return Promise.all([
+    compressImageFile(file, 200, 0.5),
+    compressImageFile(file, 900, 0.72)
+  ]).then(function (results) {
+    return { thumb: results[0], full: results[1] };
+  });
+}
+
+
+
+/* ----------------------------------------------------------------
+   PAGE-SPECIFIC LOGIC: account.html
+   Shows sign-in state, email-verification status (with a resend
+   button), role/status badges, role-based quick links, and (for
+   members) a live list of their own news submissions with status
+   and any moderator comment.
+   ---------------------------------------------------------------- */
+(function () {
+  var loadingEl = document.getElementById('acct-loading');
+  var signedOutEl = document.getElementById('acct-signed-out');
+  var signedInEl = document.getElementById('acct-signed-in');
+
+  if (!isFirebaseConfigured()) {
+    loadingEl.innerHTML = '<strong>Firebase not connected</strong>See SETUP-GUIDE.md to add your project config before accounts will work.';
+    return;
+  }
+
+  document.getElementById('acct-signout').addEventListener('click', signOutAndRedirect);
+
+  document.getElementById('acct-resend-verify').addEventListener('click', function () {
+    var user = auth.currentUser;
+    if (!user) return;
+    sendVerificationEmail(user)
+      .then(function () {
+        showToast('Verification email sent — check your inbox.', 'success');
+      })
+      .catch(function (err) {
+        showToast(err.message, 'error');
+      });
+  });
+
+  document.getElementById('acct-resend-reverify').addEventListener('click', function () {
+    var user = auth.currentUser;
+    if (!user) return;
+    sendReverificationEmail(user)
+      .then(function () {
+        showToast('Reconfirmation link sent — check your inbox.', 'success');
+      })
+      .catch(function (err) {
+        showToast(err.message, 'error');
+      });
+  });
+
+  // ---- self-repair for "signed in, but no Firestore profile doc" ----
+  // This shouldn't normally happen (login.html creates the profile
+  // doc right after the Auth account), but it can if that write ever
+  // failed — most commonly because firestore.rules hadn't been
+  // deployed yet at the moment someone signed up. Re-running the
+  // exact same create write here (same shape login.html uses) fixes
+  // it, now that the current rules are live. If it STILL fails (a
+  // genuinely different problem), the button's own .catch leaves the
+  // banner's plain-text "please report this" line as the fallback.
+  document.getElementById('acct-fix-profile').addEventListener('click', function () {
+    var user = auth.currentUser;
+    if (!user) return;
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Setting up…';
+    db.collection('users').doc(user.uid).set({
+      name: user.displayName || user.email,
+      email: user.email,
+      role: 'member',
+      status: 'approved',
+      villagerConfirmed: false,
+      restricted: false,
+      firstVerifiedAt: null,
+      reconfirmedAt: null,
+      lastReverifySentAt: null,
+      nameChangedAt: null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function () {
+      showToast('Profile set up — reloading…', 'success');
+      setTimeout(function () { window.location.reload(); }, 900);
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Set up your profile';
+      showToast('Could not set up your profile: ' + err.message, 'error');
+    });
+  });
+
+  // ---- day-3 reconfirmation landing: ?reverify=1 ----
+  // The day-3 email's link (see sendReverificationEmail) points back
+  // here with this query param once Firebase's own hosted page has
+  // confirmed the click. We only need to see it ONCE per user (it's
+  // what sets reconfirmedAt and lifts "restricted"); we guard on
+  // "!profile.reconfirmedAt" so revisiting a stale bookmarked link
+  // later doesn't do anything odd, and we strip the param from the
+  // URL afterward so a refresh doesn't re-trigger the toast.
+  var isReverifyLanding = new URLSearchParams(window.location.search).get('reverify') === '1';
+  function handleReverifyLanding(user, profile) {
+    if (!isReverifyLanding || !user || !profile || profile.reconfirmedAt) return;
+    db.collection('users').doc(user.uid).update({
+      reconfirmedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      restricted: false
+    }).then(function () {
+      showToast('Thanks — your email is reconfirmed and your account is fully active again.', 'success');
+      profile.reconfirmedAt = new Date();
+      profile.restricted = false;
+      document.getElementById('acct-restricted-note').style.display = 'none';
+      history.replaceState(null, '', window.location.pathname); // drop ?reverify=1 so a refresh doesn't re-fire this
+    }).catch(function (err) {
+      showToast('Could not confirm reconfirmation: ' + err.message, 'error');
+    });
+  }
+
+  // ---- edit name, rate-limited to once every 15 days ----
+  // The 15-day cooldown here is a courtesy check for the UI only —
+  // firestore.rules enforces the real limit server-side (comparing
+  // request.time against the account's stored nameChangedAt), since
+  // a check that lived only in this file could be skipped by anyone
+  // calling Firestore directly. This just avoids showing someone a
+  // Save button that would fail, and tells them when they can try
+  // again.
+  var NAME_COOLDOWN_MS = 15 * 24 * 60 * 60 * 1000;
+  function setupNameEditor(user, profile) {
+    var editBtn = document.getElementById('acct-name-edit-btn');
+    var editWrap = document.getElementById('acct-name-edit');
+    var input = document.getElementById('acct-name-input');
+    var saveBtn = document.getElementById('acct-name-save');
+    var cancelBtn = document.getElementById('acct-name-cancel');
+    var cooldownNote = document.getElementById('acct-name-cooldown-note');
+
+    function nextEditDate() {
+      if (!profile.nameChangedAt) return null;
+      var last = profile.nameChangedAt.toDate ? profile.nameChangedAt.toDate() : new Date(profile.nameChangedAt);
+      return new Date(last.getTime() + NAME_COOLDOWN_MS);
+    }
+
+    editBtn.addEventListener('click', function () {
+      var unlockDate = nextEditDate();
+      var onCooldown = unlockDate && unlockDate.getTime() > Date.now();
+      input.value = profile.name || '';
+      editWrap.style.display = 'block';
+      if (onCooldown) {
+        saveBtn.disabled = true;
+        input.disabled = true;
+        cooldownNote.style.display = 'block';
+        cooldownNote.textContent = 'You can change your name again on ' + unlockDate.toLocaleDateString() + '.';
+      } else {
+        saveBtn.disabled = false;
+        input.disabled = false;
+        cooldownNote.style.display = 'none';
+        input.focus();
+      }
+    });
+
+    cancelBtn.addEventListener('click', function () {
+      editWrap.style.display = 'none';
+    });
+
+    saveBtn.addEventListener('click', function () {
+      var newName = input.value.trim();
+      if (!newName) {
+        showToast('Please enter a name.', 'error');
+        return;
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      db.collection('users').doc(user.uid).update({
+        name: newName,
+        nameChangedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function () {
+        profile.name = newName;
+        profile.nameChangedAt = new Date();
+        document.getElementById('acct-name').textContent = newName;
+        editWrap.style.display = 'none';
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        showToast('Name updated.Now you can Edit NAME after 15 Days', 'success');
+      }).catch(function (err) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        showToast('Could not update your name: ' + err.message, 'error');
+      });
+    });
+  }
+
+  onAuthReady(function (user, profile) {
+    loadingEl.style.display = 'none';
+
+    if (!user) {
+      signedOutEl.style.display = 'block';
+      return;
+    }
+    signedInEl.style.display = 'block';
+
+    // user.emailVerified can be stale if the person clicked the
+    // verification link in a different tab/device and came straight
+    // here — reload() re-fetches the latest value from Firebase
+    // before we decide whether to show the "please verify" banner.
+    user.reload().then(function () {
+      var freshUser = auth.currentUser;
+      document.getElementById('acct-verify-note').style.display =
+        freshUser.emailVerified ? 'none' : 'block';
+    });
+
+    if (!profile) {
+      // Signed in, but no Firestore profile doc found — shouldn't
+      // normally happen since sign-up creates one, but handle it
+      // gracefully rather than showing a broken page. See the
+      // "acct-fix-profile" button above for the actual repair.
+      document.getElementById('acct-name').textContent = user.email;
+      document.getElementById('acct-email').textContent = user.email;
+      document.getElementById('acct-no-profile').style.display = 'block';
+      return;
+    }
+
+    handleReverifyLanding(user, profile);
+
+    document.getElementById('acct-name').textContent = profile.name || user.email;
+    document.getElementById('acct-email').textContent = user.email;
+    setupNameEditor(user, profile);
+
+    var rolePill = document.getElementById('acct-role-pill');
+    rolePill.textContent = profile.role;
+    rolePill.classList.add('status-' + profile.role);
+
+    var statusPill = document.getElementById('acct-status-pill');
+    statusPill.textContent = profile.status;
+    statusPill.classList.add('status-' + profile.status);
+
+    // "Self-verified" (default) vs "Confirmed villager" (an admin has
+    // manually flipped this in admin.html) — purely informational,
+    // restores the visibility that used to come from admin approval
+    // of every sign-up.
+    var villagerPill = document.getElementById('acct-villager-pill');
+    if (profile.villagerConfirmed) {
+      villagerPill.textContent = 'Confirmed villager';
+      villagerPill.classList.add('status-villager-confirmed');
+    } else {
+      villagerPill.textContent = 'Self-verified';
+      villagerPill.classList.add('status-self-verified');
+    }
+
+    document.getElementById('acct-restricted-note').style.display =
+      profile.restricted ? 'block' : 'none';
+
+    var linksEl = document.getElementById('acct-links');
+
+    if (profile.status !== 'approved') {
+      document.getElementById('acct-pending-note').style.display = 'block';
+      return; // nothing else to show until approved
+    }
+
+    // Role-based quick links to the relevant dashboard(s). The old
+    // separate "Add news or event" / "Update in Page" buttons are
+    // now one merged button pointing at contribute.html (which has
+    // both forms as tabs — see that file) — given to every role,
+    // including admin, since consolidating the two old pages into
+    // one meant admin naturally gained the Update Page tab too
+    // (nothing in firestore.rules ever actually stopped an admin
+    // from submitting a page suggestion; the UI just never offered
+    // it before). "Announce Death" is new too, and also goes to
+    // every role — admins and moderators publish directly from that
+    // page, members submit for review (see announce-death.html and
+    // firestore.rules' memorials rules).
+    var contributeLink = '<a class="btn btn-ghost" href="contribute.html">Add News or Update Page</a>';
+    var announceDeathLink = '<a class="btn btn-ghost" href="announce-death.html">Announce Death</a>';
+    if (profile.role === 'admin') {
+      linksEl.innerHTML = '<a class="btn btn-primary" href="admin.html">Open Admin panel</a>' +
+        '<a class="btn btn-ghost" href="moderate.html">Open Moderation queue</a>' +
+        contributeLink + announceDeathLink;
+    } else if (profile.role === 'moderator') {
+      linksEl.innerHTML = '<a class="btn btn-primary" href="moderate.html">Open Moderation queue</a>' +
+        contributeLink + announceDeathLink;
+    } else {
+      linksEl.innerHTML = '<a class="btn btn-primary" href="contribute.html">Add News or Update Page</a>' +
+        announceDeathLink;
+    }
+
+    // Admins get an extra section further down the page for managing
+    // the site-wide welcome popup (see initPopupManager() near the
+    // bottom of this script).
+    if (profile.role === 'admin') {
+      document.getElementById('acct-popup-section').style.display = 'block';
+      initPopupManager();
+    }
+
+    // ---- Stat pills, next to the person's name ----
+    // member:    published/total of their own news
+    // moderator: published/total of their own news, + a clickable
+    //            "N news" pill (pending items sitewide → Moderation Queue)
+    // admin:     four clickable pills, each linking straight to the
+    //            relevant section of the Admin panel (or the
+    //            Moderation Queue for news, which lives on its own page)
+    var pillsEl = document.getElementById('acct-stat-pills');
+
+    if (profile.role === 'admin') {
+      var pills = [
+        { key: 'news', label: 'news', href: 'moderate.html', collection: 'news', where: ['status', '==', 'pending'] },
+        { key: 'death', label: 'Death', href: 'moderate.html#mod-memorial-section', collection: 'memorials', where: ['status', '==', 'pending'] },
+        { key: 'signin', label: 'sign-in', href: 'admin.html#adm-content', collection: 'users', where: ['status', '==', 'pending'] },
+        { key: 'sug', label: 'sug.', href: 'admin.html#adm-suggestions-section', collection: 'pageSuggestions', where: ['status', '==', 'pending'] },
+        { key: 'msg', label: 'msg', href: 'admin.html#adm-messages-section', collection: 'suggestions', where: ['status', '==', 'new'] }
+      ];
+      pillsEl.innerHTML = pills.map(function (p) {
+        return '<a href="' + p.href + '" class="status-pill status-pending" id="acct-pill-' + p.key + '" style="text-decoration:none; display:none;"></a>';
+      }).join('');
+      pills.forEach(function (p) {
+        db.collection(p.collection).where(p.where[0], p.where[1], p.where[2]).get().then(function (snap) {
+          var el = document.getElementById('acct-pill-' + p.key);
+          el.textContent = snap.size + ' ' + p.label;
+          el.style.display = 'inline-flex';
+        }).catch(function () { /* nice-to-have; fail quietly */ });
+      });
+    } else {
+      pillsEl.innerHTML = '<span class="status-pill" id="acct-news-stat" style="display:none;" title="Published / total news you\'ve submitted"></span>' +
+        (profile.role === 'moderator' ? '<a href="moderate.html" class="status-pill status-pending" id="acct-new-count" style="display:none; text-decoration:none;" title="Pending news not yet reviewed by any moderator/admin"></a>' : '') +
+        (profile.role === 'moderator' ? '<a href="moderate.html#mod-memorial-section" class="status-pill status-pending" id="acct-new-death-count" style="display:none; text-decoration:none;" title="Pending death announcements not yet reviewed by any moderator/admin"></a>' : '');
+
+      db.collection('news').where('authorId', '==', user.uid).get().then(function (snap) {
+        var total = snap.size;
+        var published = 0;
+        snap.forEach(function (doc) { if (doc.data().status === 'published') published += 1; });
+        var statEl = document.getElementById('acct-news-stat');
+        statEl.textContent = published + ' / ' + total;
+        statEl.style.display = total > 0 ? 'inline-flex' : 'none';
+      }).catch(function () { /* stat is a nice-to-have; fail quietly */ });
+
+      if (profile.role === 'moderator') {
+        db.collection('news').where('status', '==', 'pending').get().then(function (snap) {
+          var newEl = document.getElementById('acct-new-count');
+          if (snap.size > 0) {
+            newEl.textContent = snap.size + ' news';
+            newEl.style.display = 'inline-flex';
+          }
+        }).catch(function () { /* nice-to-have; fail quietly */ });
+
+        db.collection('memorials').where('status', '==', 'pending').get().then(function (snap) {
+          var deathEl = document.getElementById('acct-new-death-count');
+          if (snap.size > 0) {
+            deathEl.textContent = snap.size + ' Death';
+            deathEl.style.display = 'inline-flex';
+          }
+        }).catch(function () { /* nice-to-have; fail quietly */ });
+      }
+    }
+
+    // Members (and anyone really) can see their own submission
+    // history. Admins/moderators mostly won't have any, so the
+    // section just shows an empty state for them, which is fine.
+    var subsWrap = document.getElementById('acct-submissions-wrap');
+    var subsList = document.getElementById('acct-submissions-list');
+    subsWrap.style.display = 'block';
+
+    db.collection('news').where('authorId', '==', user.uid)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(function (snap) {
+        // A rejected submission quietly drops off the author's own
+        // list 10 days after it was rejected (it's not deleted —
+        // admins can still see and manage it from moderate.html
+        // until they choose to delete it themselves).
+        var TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+        var now = Date.now();
+        var docs = snap.docs.filter(function (doc) {
+          var d = doc.data();
+          if (d.status !== 'rejected' || !d.reviewedAt || !d.reviewedAt.toDate) return true;
+          return (now - d.reviewedAt.toDate().getTime()) < TEN_DAYS_MS;
+        });
+        if (docs.length === 0) {
+          subsList.innerHTML = '<div class="queue-empty">You haven\'t submitted anything yet.</div>';
+          return;
+        }
+        var html = '';
+        docs.forEach(function (doc) {
+          var d = doc.data();
+          var thumbs = (d.thumbnails && d.thumbnails.length)
+            ? '<div class="queue-thumbs">' + d.thumbnails.map(function (url) {
+                return '<img src="' + url + '" alt="Attached photo">';
+              }).join('') + '</div>'
+            : '';
+          html += '<div class="queue-item">' +
+            '<div class="queue-item-top"><h3>' + escapeHtml(d.title) + '</h3>' +
+            '<span class="status-pill status-' + d.status + '">' + d.status + '</span></div>' +
+            '<div class="queue-meta">' + escapeHtml(d.category || 'News') + '</div>' +
+            '<p class="queue-body">' + escapeHtml(d.body) + '</p>' +
+            thumbs +
+            (d.moderatorComment ? '<p class="queue-body"><b>Moderator note:</b> ' + escapeHtml(d.moderatorComment) + '</p>' : '') +
+            '</div>';
+        });
+        subsList.innerHTML = html;
+      }, function (err) {
+        subsList.innerHTML = '<div class="queue-empty">Could not load submissions: ' + err.message + '</div>';
+      });
+
+    // Same idea, for the author's own In Memoriam (death announcement)
+    // submissions — these can additionally have their Namaz-e-Janaza
+    // date/time added or corrected right here (once, while still
+    // estimated), since that information is very often confirmed (or
+    // changes) well after the announcement itself was submitted. See
+    // firestore.rules for the update rule that allows this.
+    var memWrap = document.getElementById('acct-memorials-wrap');
+    var memList = document.getElementById('acct-memorials-list');
+    memWrap.style.display = 'block';
+
+    db.collection('memorials').where('authorId', '==', user.uid)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(function (snap) {
+        // Drop off this personal list 3 days after the janaza day,
+        // regardless of status (published/pending/rejected) or
+        // whether it was confirmed or estimated — this is just the
+        // author's own working view, not the permanent public record
+        // (that's in-memoriam.html, which only ever shows published
+        // ones anyway).
+        var THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        var now = Date.now();
+        var docs = snap.docs.filter(function (doc) {
+          var d = doc.data();
+          if (!d.janazaDate || !d.janazaDate.toDate) return true;
+          return (now - d.janazaDate.toDate().getTime()) < THREE_DAYS_MS;
+        });
+        if (docs.length === 0) {
+          memList.innerHTML = '<div class="queue-empty">You haven\'t submitted a death announcement yet.</div>';
+          return;
+        }
+        var html = '';
+        docs.forEach(function (doc) {
+          var d = doc.data();
+          var heading = d.name || d.relationTag || d.tagLine || 'Announcement';
+          // Locked once confirmed (via original "Yes", or the one-time
+          // edit having been used) OR once the originally-estimated
+          // day has fully passed without ever being edited — see
+          // isJanazaLocked(). Only while genuinely open does the
+          // editor show; otherwise, point the author to Contact for
+          // any further change (an admin can still update it anytime).
+          var locked = isJanazaLocked(d);
+          var editor = locked ? '' : janazaEditorHtml(doc.id, d);
+          var contactLine = locked ? janazaContactLineHtml() : '';
+          html += '<div class="queue-item" data-id="' + doc.id + '">' +
+            '<div class="queue-item-top"><h3>' + escapeHtml(heading) + '</h3>' +
+            '<span class="status-pill status-' + d.status + '">' + d.status + '</span></div>' +
+            '<div class="queue-meta">Namaz-e-Janaza: ' + formatJanazaLine(d) + '</div>' +
+            (d.moderatorComment ? '<p class="queue-body"><b>Moderator note:</b> ' + escapeHtml(d.moderatorComment) + '</p>' : '') +
+            editor +
+            contactLine +
+            '</div>';
+        });
+        memList.innerHTML = html;
+        memList.querySelectorAll('.queue-item').forEach(function (item) {
+          attachJanazaEditorHandler(item);
+        });
+      }, function (err) {
+        memList.innerHTML = '<div class="queue-empty">Could not load submissions: ' + err.message + '</div>';
+      });
+  });
+
+  /* Basic HTML-escaping so user-submitted text can never break the
+     page layout or inject markup when we insert it with innerHTML. */
+  // ---- Admin-only: manage the site-wide welcome popup slides ----
+  function initPopupManager() {
+    var listEl = document.getElementById('acct-popup-list');
+    var formEl = document.getElementById('acct-popup-form');
+    var imageInput = document.getElementById('acct-popup-image');
+    var fileHint = document.getElementById('acct-popup-file-hint');
+    var submitBtn = document.getElementById('acct-popup-submit-btn');
+    var selectedImage = null;
+
+    imageInput.addEventListener('change', function () {
+      selectedImage = imageInput.files[0] || null;
+      fileHint.textContent = selectedImage ? selectedImage.name : 'No photo selected.';
+    });
+
+    db.collection('popupSlides').orderBy('order', 'asc')
+      .onSnapshot(function (snap) {
+        if (snap.empty) {
+          listEl.innerHTML = '<div class="queue-empty">No slides yet &mdash; add one below.</div>';
+          return;
+        }
+        var docs = snap.docs;
+        var html = '';
+        docs.forEach(function (doc, i) {
+          var d = doc.data();
+          var thumb = d.image ? '<div class="queue-thumbs"><img src="' + d.image + '" alt=""></div>' : '';
+          html += '<div class="queue-item" data-id="' + doc.id + '">' +
+            '<div class="queue-item-top">' +
+              '<div><h3 style="font-size:1rem;">Slide ' + (i + 1) + '</h3></div>' +
+              '<span class="status-pill ' + (d.active ? 'status-approved' : 'status-pending') + '" data-action="toggle-active" style="cursor:pointer;">' + (d.active ? 'active' : 'paused') + '</span>' +
+            '</div>' +
+            '<p class="queue-body">' + escapeHtml(d.description || '') + '</p>' +
+            thumb +
+            '<div class="queue-actions">' +
+              (i > 0 ? '<button type="button" class="btn btn-ghost btn-sm" data-action="move-up">&uarr; Move up</button>' : '') +
+              (i < docs.length - 1 ? '<button type="button" class="btn btn-ghost btn-sm" data-action="move-down">&darr; Move down</button>' : '') +
+              '<button type="button" class="btn btn-reject btn-sm" data-action="delete">Delete</button>' +
+            '</div>' +
+          '</div>';
+        });
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll('.queue-item').forEach(function (item, i) {
+          var id = item.dataset.id;
+          var d = docs[i].data();
+
+          var toggleBtn = item.querySelector('[data-action="toggle-active"]');
+          if (toggleBtn) toggleBtn.addEventListener('click', function () {
+            db.collection('popupSlides').doc(id).update({ active: !d.active })
+              .catch(function (err) { showToast('Could not update: ' + err.message, 'error'); });
+          });
+
+          var upBtn = item.querySelector('[data-action="move-up"]');
+          if (upBtn) upBtn.addEventListener('click', function () {
+            var otherDoc = docs[i - 1];
+            var batch = db.batch();
+            batch.update(db.collection('popupSlides').doc(id), { order: otherDoc.data().order });
+            batch.update(db.collection('popupSlides').doc(otherDoc.id), { order: d.order });
+            batch.commit().catch(function (err) { showToast('Could not reorder: ' + err.message, 'error'); });
+          });
+
+          var downBtn = item.querySelector('[data-action="move-down"]');
+          if (downBtn) downBtn.addEventListener('click', function () {
+            var otherDoc = docs[i + 1];
+            var batch = db.batch();
+            batch.update(db.collection('popupSlides').doc(id), { order: otherDoc.data().order });
+            batch.update(db.collection('popupSlides').doc(otherDoc.id), { order: d.order });
+            batch.commit().catch(function (err) { showToast('Could not reorder: ' + err.message, 'error'); });
+          });
+
+          item.querySelector('[data-action="delete"]').addEventListener('click', function () {
+            if (!window.confirm('Delete this slide? This can\'t be undone.')) return;
+            db.collection('popupSlides').doc(id).delete()
+              .catch(function (err) { showToast('Could not delete: ' + err.message, 'error'); });
+          });
+        });
+      }, function (err) {
+        listEl.innerHTML = '<div class="queue-empty">Could not load slides: ' + err.message + '</div>';
+      });
+
+    formEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var description = document.getElementById('acct-popup-desc').value.trim();
+      if (!description && !selectedImage) {
+        showToast('Add a description or a photo first.', 'error');
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Adding…';
+
+      var compressStep = selectedImage
+        ? compressImageTwoSizes(selectedImage).then(function (c) { return c.thumb; })
+        : Promise.resolve(null);
+
+      compressStep.then(function (imageThumb) {
+        // New slides go to the end of the order — Date.now() is a
+        // simple, always-increasing number, good enough for ordering
+        // without needing to read every existing slide first.
+        return db.collection('popupSlides').add({
+          description: description,
+          image: imageThumb,
+          active: true,
+          order: Date.now(),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).then(function () {
+        showToast('Slide added.', 'success');
+        formEl.reset();
+        selectedImage = null;
+        fileHint.textContent = 'No photo selected.';
+      }).catch(function (err) {
+        showToast('Could not add slide: ' + err.message, 'error');
+      }).finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add slide';
+      });
+    });
+  }
+
+  // Same wording as in-memoriam.html/moderate.html/index.html — an
+  // exact "Yes" is stated plainly (date+time highlighted gold), an
+  // unconfirmed "No" estimate is framed as "Announce later" (that
+  // phrase itself highlighted gold, the "(May be on ...)" part plain).
+  // Returns HTML (not escaped further) — dateStr/timeStr are always
+  // computer-formatted, never raw user input, so this is safe.
+  var JANAZA_GOLD_STYLE = 'background:var(--gold); color:var(--night); padding:1px 6px; border-radius:4px; font-weight:600;';
+  // Shows "Yesterday"/"Today"/"Tomorrow" instead of the raw date when
+  // it's within a day of now (computed fresh on every render).
+  function relativeDayLabel(dateObj) {
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var target = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    var diffDays = Math.round((target - today) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === -1) return 'Yesterday';
+    if (diffDays === 1) return 'Tomorrow';
+    return null;
+  }
+  function formatJanazaLine(d) {
+    var dateObj = d.janazaDate && d.janazaDate.toDate ? d.janazaDate.toDate() : null;
+    var dateStr = dateObj ? (relativeDayLabel(dateObj) || dateObj.toLocaleDateString()) : null;
+    var timeStr = d.janazaTime ? formatTime12h(d.janazaTime) : null;
+    if (d.janazaConfirmed) {
+      var when = dateStr && timeStr ? dateStr + ', ' + timeStr : (dateStr || 'To be announced');
+      return '<mark style="' + JANAZA_GOLD_STYLE + '">' + when + '</mark>';
+    }
+    var estimate = dateStr && timeStr ? ' May be on (' + dateStr + ', ' + timeStr + ')' : (dateStr ? ' May be on (' + dateStr + ')' : '');
+    return '<mark style="' + JANAZA_GOLD_STYLE + '">Announce later</mark>' + estimate;
+  }
+  function formatTime12h(hhmm) {
+    var parts = hhmm.split(':');
+    var h = parseInt(parts[0], 10);
+    var m = parts[1];
+    var suffix = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return h12 + ':' + m + ' ' + suffix;
+  }
+  // Date input needs "YYYY-MM-DD"; toISOString would shift by
+  // timezone, so build it from local getters instead.
+  function toDateInputValue(dateObj) {
+    var y = dateObj.getFullYear();
+    var m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    var day = String(dateObj.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  // True once the whole estimated day has gone by (through 11:59pm on
+  // that day) — mirrors the cutoff enforced in firestore.rules
+  // (janazaDate + 1 day). Used to auto-lock an unconfirmed estimate
+  // even if the author never came back to edit it.
+  function isPastEstimatedDay(d) {
+    if (!d.janazaDate || !d.janazaDate.toDate) return false;
+    var day = d.janazaDate.toDate();
+    var endOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1, 0, 0, 0);
+    return Date.now() >= endOfDay.getTime();
+  }
+  // Locked = no more self-service editing available — either it was
+  // confirmed (originally "Yes", or the one-time edit already used),
+  // or it was left as an estimate and that estimated day has now
+  // fully passed. Locked either way means: show the "ask an admin"
+  // line instead of the editor.
+  function isJanazaLocked(d) {
+    return d.janazaConfirmed === true || isPastEstimatedDay(d);
+  }
+  function janazaContactLineHtml() {
+    return '<p class="queue-meta" style="margin-top:8px;">' +
+      'Want to change the date or time? Request to admin through ' +
+      '<a href="contact.html" class="btn btn-ghost btn-sm" style="display:inline-flex; margin-left:2px;">Contact</a>' +
+      '</p>';
+  }
+  // One-time "add your estimate" widget — only ever rendered (by the
+  // caller above) while it's still unlocked (see isJanazaLocked).
+  // Saving here flips janazaConfirmed to true, which is what makes
+  // this a ONE-TIME correction: firestore.rules only lets the author
+  // take this path while janazaConfirmed == false AND before the
+  // estimated day ends, so once either of those stops holding, neither
+  // this widget nor the rule will allow another self-edit — only an
+  // admin can change it from here on.
+  function janazaEditorHtml(id, d) {
+    var dateVal = d.janazaDate && d.janazaDate.toDate ? toDateInputValue(d.janazaDate.toDate()) : '';
+    var timeVal = d.janazaTime || '';
+    return '<div class="janaza-editor" style="margin-top:8px; padding:10px; border:1px dashed var(--line-dark); border-radius:8px;">' +
+      '<p class="queue-meta" style="margin:0 0 6px;">Confirm the Namaz-e-Janaza date &amp; time (one-time correction — this locks once saved, or automatically at the end of the estimated day)</p>' +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:end;">' +
+        '<label style="font-size:0.78rem;">Date<br><input type="date" class="janaza-date-input" value="' + dateVal + '"></label>' +
+        '<label style="font-size:0.78rem;">Time<br><input type="time" class="janaza-time-input" value="' + timeVal + '"></label>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="save-janaza" data-id="' + id + '">Save (locks after this)</button>' +
+      '</div>' +
+    '</div>';
+  }
+  function attachJanazaEditorHandler(container) {
+    var btn = container.querySelector('[data-action="save-janaza"]');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var wrap = btn.closest('.janaza-editor');
+      var id = btn.dataset.id;
+      var dateStr = wrap.querySelector('.janaza-date-input').value;
+      var timeStr = wrap.querySelector('.janaza-time-input').value;
+      if (!dateStr) {
+        showToast('A date is required.', 'error');
+        return;
+      }
+      if (!window.confirm('Once saved, you won\'t be able to change this again yourself. Continue?')) return;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      db.collection('memorials').doc(id).update({
+        janazaDate: firebase.firestore.Timestamp.fromDate(new Date(dateStr)),
+        janazaTime: timeStr || null,
+        janazaConfirmed: true
+      }).then(function () {
+        showToast('Namaz-e-Janaza date/time confirmed.', 'success');
+        // Re-render is driven by the onSnapshot listener above, which
+        // will now see janazaConfirmed:true and stop showing this
+        // widget for this item.
+      }).catch(function (err) {
+        showToast('Could not update: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save (locks after this)';
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str == null ? '' : str;
+    return div.innerHTML;
+  }
+})();
+
+</script>
+<script>
+// Name (Role) + breadcrumb line, shown at the top of the page for
+// signed-in people only — independent of the rest of this page's
+// logic above, so it can't interfere with it either way.
+onAuthReady(function (user, profile) {
+  if (!user || !profile) return;
+  var roleLabel = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+  document.getElementById('page-badge-name').textContent = (profile.name || user.email) + ' (' + roleLabel + ')';
+  document.getElementById('page-badge-crumbs').innerHTML = '<a href="account.html" style="color:inherit; text-decoration:underline;">Account</a>';
+  document.getElementById('page-badge').style.display = 'block';
+});
+</script>
+<!-- Site-wide welcome popup: reads active slides from the public
+     "popupSlides" Firestore collection and shows them once per
+     day per visitor (localStorage timestamp), with Prev/Next between
+     slides. Fully self-contained — brings its own Firestore
+     connection, so it works whether or not this page already
+     initialized Firebase for something else. Managed by admins
+     from account.html. -->
+<script>
+(function () {
+  var POPUP_CONFIG = {
+    apiKey: "AIzaSyA3gXYIGxSMzKYyY-TpK1i05jDjaHJ8km8",
+  authDomain: "gumtala-skg.firebaseapp.com",
+  projectId: "gumtala-skg",
+  storageBucket: "gumtala-skg.firebasestorage.app",
+  messagingSenderId: "1065356501378",
+  appId: "1:1065356501378:web:ec59829f02efffbc80af9b"
+  };
+  if (!window.firebase || !window.firebase.firestore) return; // SDK didn't load; fail quietly, never block the page
+  if (!window.firebase.apps.length) window.firebase.initializeApp(POPUP_CONFIG);
+  var popupDb = window.firebase.firestore();
+
+  // Shows at most once every 24 hours per browser/device — a
+  // timestamp in localStorage (which persists across tabs and
+  // restarts, unlike sessionStorage) is compared to "now" on each
+  // visit, and only reset once a full day has passed.
+  var POPUP_STORAGE_KEY = 'gv-popup-last-shown';
+  var POPUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  var popupLastShown = parseInt(localStorage.getItem(POPUP_STORAGE_KEY), 10);
+  if (popupLastShown && (Date.now() - popupLastShown) < POPUP_INTERVAL_MS) return;
+
+  popupDb.collection('popupSlides').where('active', '==', true).orderBy('order', 'asc').get()
+    .then(function (snap) {
+      if (snap.empty) return;
+      var slides = [];
+      snap.forEach(function (doc) { slides.push(doc.data()); });
+      showSitePopup(slides);
+    })
+    .catch(function () { /* fail quietly — a broken popup should never block the page */ });
+
+  function showSitePopup(slides) {
+    localStorage.setItem(POPUP_STORAGE_KEY, Date.now().toString());
+    var idx = 0;
+    var backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop open';
+    backdrop.innerHTML =
+      '<div class="modal" style="max-width:480px; text-align:center;">' +
+        '<button type="button" class="modal-close" aria-label="Close" id="gv-popup-close">&times;</button>' +
+        '<img id="gv-popup-img" style="width:100%; border-radius:10px; margin-bottom:16px; display:none;" alt="">' +
+        '<p id="gv-popup-desc" style="font-family:\'Work Sans\', sans-serif; color:var(--ink-dark); margin:0;"></p>' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">' +
+          '<button type="button" class="btn btn-ghost btn-sm" id="gv-popup-prev">&larr; Prev</button>' +
+          '<span id="gv-popup-count" style="font-family:\'JetBrains Mono\', monospace; font-size:0.78rem; color:var(--muted-dark);"></span>' +
+          '<button type="button" class="btn btn-ghost btn-sm" id="gv-popup-next">Next &rarr;</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(backdrop);
+
+    function render() {
+      var s = slides[idx];
+      var imgEl = document.getElementById('gv-popup-img');
+      if (s.image) { imgEl.src = s.image; imgEl.style.display = 'block'; } else { imgEl.style.display = 'none'; }
+      document.getElementById('gv-popup-desc').textContent = s.description || '';
+      document.getElementById('gv-popup-count').textContent = (idx + 1) + ' / ' + slides.length;
+      var multi = slides.length > 1;
+      document.getElementById('gv-popup-prev').style.visibility = multi ? 'visible' : 'hidden';
+      document.getElementById('gv-popup-next').style.visibility = multi ? 'visible' : 'hidden';
+    }
+    render();
+
+    document.getElementById('gv-popup-prev').addEventListener('click', function () {
+      idx = (idx - 1 + slides.length) % slides.length;
+      render();
+    });
+    document.getElementById('gv-popup-next').addEventListener('click', function () {
+      idx = (idx + 1) % slides.length;
+      render();
+    });
+    function closePopup() { backdrop.remove(); }
+    document.getElementById('gv-popup-close').addEventListener('click', closePopup);
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closePopup(); });
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape') { closePopup(); document.removeEventListener('keydown', escHandler); }
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background: the site's night-navy, edge to edge (safe for maskable icons) -->
+  <rect width="512" height="512" fill="#16233B"/>
+
+  <!-- Ring + dome/minaret mark, in the site's gold — filled/thick shapes
+       (rather than the header's thin 1.2px outline) so it stays legible
+       at small home-screen sizes like 48px. -->
+  <g transform="translate(256 256)">
+    <!-- outer ring, as a thick donut instead of a hairline stroke -->
+    <circle cx="0" cy="0" r="180" fill="none" stroke="#F2A93B" stroke-width="16"/>
+
+    <!-- dome + minaret silhouette, filled -->
+    <path d="
+      M0 -132
+      L0 -158
+      M-64 -66
+      C-64 -122 -35 -158 0 -158
+      C35 -158 64 -122 64 -66
+      L64 74
+      L-64 74
+      Z"
+      fill="#F2A93B" stroke="#F2A93B" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>

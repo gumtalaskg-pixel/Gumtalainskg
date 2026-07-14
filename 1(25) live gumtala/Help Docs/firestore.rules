@@ -1,0 +1,639 @@
+// ============================================================================
+// FIRESTORE SECURITY RULES — 16.2(edit name)Gumtala village site accounts system
+// ============================================================================
+// What this file is: Firestore (Firebase's database) checks every single
+// read and write against rules like these BEFORE it happens — the website's
+// own JavaScript can be as trusting as it likes, because these rules are
+// the real gatekeeper. Even someone editing the page's code in their browser
+// console cannot get around them.
+//
+// HOW TO DEPLOY THIS FILE:
+//   Firebase Console → Firestore Database → Rules tab → paste this in →
+//   Publish. (Or, if you use the Firebase CLI: `firebase deploy --only
+//   firestore:rules` with this file saved as firestore.rules.)
+//
+// DATA MODEL these rules assume:
+//   users/{uid}        one document per account, keyed by their Firebase
+//                       Auth user id. Fields: name, email, role
+//                       ("member" | "moderator" | "admin"),
+//                       status ("approved" | "pending" | "rejected" — new
+//                       sign-ups now start "approved" directly; "pending"
+//                       only appears if an admin manually sets someone
+//                       back to it), villagerConfirmed (bool, admin-only
+//                       badge meaning "an admin has personally recognised
+//                       this person as an actual villager" — distinct
+//                       from status, which just tracks account standing),
+//                       firstVerifiedAt (timestamp, set once the first
+//                       time we see emailVerified go true), restricted
+//                       (bool, set true if 3+ days pass after
+//                       firstVerifiedAt with no reconfirmedAt — blocks
+//                       new submissions only, not sign-in or reading),
+//                       reconfirmedAt (timestamp, set once they click the
+//                       day-3 reconfirmation link), lastReverifySentAt
+//                       (timestamp, when the day-3 email last went out,
+//                       so it isn't resent every single page load),
+//                       createdAt.
+//   news/{id}           one document per submitted news/announcement.
+//                       Fields: title, category, body, thumbnails (array
+//                       of up to 3 small base64 JPEG data URLs, a few KB
+//                       each — enough for card/queue previews), photoCount,
+//                       authorId, authorName, status ("pending" |
+//                       "published" | "rejected"), moderatorComment,
+//                       moderatorId, reviewedAt, createdAt. Admins publish
+//                       straight away (status starts "published"); members
+//                       and moderators start "pending" and need someone
+//                       else to approve it (see the update rule below).
+//   news/{id}/photos/{photoId}
+//                       one document per attached photo's FULL-size
+//                       version (moderately compressed base64 JPEG data
+//                       URL, well under Firestore's 1 MiB document
+//                       limit). Fields: index, full. Only ever read when
+//                       someone opens that news item's photo modal —
+//                       never as part of loading a list of news items.
+//   memorials/{id}      one document per "In Memoriam" death announcement
+//                       (in-memoriam.html). Fields: name (optional),
+//                       relationTag, tagLine, dateOfDeath,
+//                       deathHouseLocation, janazaConfirmed (bool —
+//                       whether the submitter said the Namaz-e-Janaza
+//                       date/time was confirmed ("Yes") or only an
+//                       estimate ("No")), janazaDate (timestamp,
+//                       date-only — always required), janazaTime
+//                       (string "HH:MM" — required only when
+//                       janazaConfirmed is true), janazaLocation,
+//                       qabrastanLocation, contactNumber (optional,
+//                       only ever set on a moderator/admin-authored
+//                       doc), photo (single optional base64 string),
+//                       notes, authorId, authorName, authorRole
+//                       (snapshotted at submission time), status
+//                       ("pending" | "published" | "rejected"),
+//                       moderatorComment, moderatorId, reviewedAt,
+//                       createdAt. Moderators AND admins may publish
+//                       straight away here (unlike news, where only
+//                       admins can); members start "pending" as usual.
+//                       Shown "prominently" (homepage banner + top of
+//                       in-memoriam.html) for 3 days after janazaDate,
+//                       then quietly moves into the permanent archive
+//                       list further down the same page — this timing
+//                       is computed in-page from janazaDate, not stored
+//                       as a separate field.
+//   pageSuggestions/{id}
+//                       one document per "Update in Page" submission
+//                       (suggest-update.html) — a member suggesting
+//                       photos/content for an existing page, for an admin
+//                       to manually add. Fields: targetPage, title,
+//                       message, thumbnails, photoCount, authorId,
+//                       authorName, status ("pending" | "approved" |
+//                       "rejected"), moderatorComment, moderatorId,
+//                       reviewedAt, createdAt. Only admins review these
+//                       (unlike news, moderators do not).
+//   pageSuggestions/{id}/photos/{photoId}
+//                       same idea as news/{id}/photos — full-size photo
+//                       versions, fetched on demand only.
+//   suggestions/{id}   messages sent through contact.html's "Send a
+//                       note" form. No sign-in required to create one.
+//                       Fields: name, email, message, status ("new" |
+//                       "read"), createdAt. Only admins can read them.
+//   notifications/{id} personal in-app notifications shown via the bell
+//                       icon in every page's header (notifications.js).
+//                       Written by a moderator/admin on behalf of
+//                       whoever the notification is ABOUT — never by
+//                       that person themselves. Fields: recipientId,
+//                       type (e.g. "news_approved"), title, message
+//                       (optional), link (relative URL), read (bool),
+//                       createdAt. The bell's OTHER two counts (items
+//                       waiting for review; new public posts since last
+//                       checked) are computed live from existing
+//                       collections and are NOT stored here at all.
+//   cardLikes/{cardId}/likedBy/{uid}
+//                       the ❤️ Like / 🤲 Condolences button available on
+//                       cards across the site (card-actions.js). One
+//                       doc per person who reacted to that card —
+//                       existence IS the reaction, so the only field is
+//                       createdAt. No counter field anywhere; the count
+//                       shown on a card is a live count() aggregation
+//                       query over this subcollection instead. cardId
+//                       is just whatever string the HTML's data-card-id
+//                       attribute holds for that card — see
+//                       card-actions.js for the full picture, including
+//                       why memorials get "condolences" wording rather
+//                       than a literal "like" count.
+//
+//                       There is no Firebase Storage / Cloud Storage
+//                       usage anywhere in this site: every image, at
+//                       both sizes, is compressed in the browser and
+//                       stored as a plain string field in Firestore, so
+//                       the whole site runs on the free Spark plan.
+// ============================================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------
+    // Helper functions — reused across the rules below so the logic for
+    // "who counts as an approved admin/moderator" lives in one place.
+    // ------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Reads the requester's OWN profile document to check their role.
+    // (A Firestore rule is allowed to read other documents like this —
+    // it's the standard way to look up "who am I" during a permission
+    // check.)
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isApproved() {
+      return isSignedIn() && myProfile().status == 'approved';
+    }
+
+    // Same as isApproved(), but also blocks anyone who's been
+    // auto-restricted for missing their day-3 re-confirmation email
+    // (see users/{uid} above) — used specifically at the points where
+    // someone creates new content (news, page-update suggestions,
+    // memorials), since that's what the restriction is meant to
+    // pause. Being restricted does NOT stop someone reading things
+    // they could already read, signing in, or resending the link —
+    // only new submissions.
+    //
+    // Uses .get('restricted', false) rather than a plain
+    // .restricted read: "restricted" is a newer field, so any
+    // account created before it existed simply doesn't have that key
+    // at all yet. Reading a genuinely missing map key directly
+    // (myProfile().restricted) throws during rule evaluation, and a
+    // thrown error is treated as a denial — which silently broke
+    // submissions for exactly those older accounts. .get(key,
+    // default) returns the default instead of throwing when the key
+    // is absent, so older accounts are correctly treated as "not
+    // restricted" instead of crashing.
+    function isActiveMember() {
+      return isApproved() && myProfile().get('restricted', false) != true;
+    }
+
+    function isAdmin() {
+      return isApproved() && myProfile().role == 'admin';
+    }
+
+    function isModerator() {
+      return isApproved() && myProfile().role == 'moderator';
+    }
+
+    function isAdminOrModerator() {
+      return isAdmin() || isModerator();
+    }
+
+    // ------------------------------------------------------------------
+    // users/{uid} — account profiles (role + approval status)
+    // ------------------------------------------------------------------
+    match /users/{uid} {
+
+      // Anyone can create THEIR OWN profile document (this is what
+      // happens automatically at sign-up in login.html) — but only
+      // ever as an approved member. Admin approval of new sign-ups is
+      // currently disabled (see the day-3 reconfirmation rule below
+      // for the safeguard that replaces it) — this stops anyone from
+      // signing themselves up as an admin/moderator or with any other
+      // role by editing the request; the only self-created account
+      // shape allowed is a plain approved member with a clean set of
+      // starting tracking fields. nameChangedAt starts null too, same
+      // idea as firstVerifiedAt/reconfirmedAt — it's what the name-edit
+      // cooldown below checks against, and starting it unset stops
+      // someone from creating their own doc with an old timestamp
+      // already in place to skip the cooldown on day one.
+      allow create: if isSignedIn()
+                    && request.auth.uid == uid
+                    && request.resource.data.role == 'member'
+                    && request.resource.data.status == 'approved'
+                    && request.resource.data.restricted == false
+                    && request.resource.data.villagerConfirmed == false
+                    && request.resource.data.firstVerifiedAt == null
+                    && request.resource.data.reconfirmedAt == null
+                    && request.resource.data.nameChangedAt == null;
+
+      // You can read your own profile; admins can read anyone's
+      // (needed for the Admin panel's user list).
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Only an admin can change someone's role, approval status, or
+      // the "villagerConfirmed" badge — this is the "admin approves
+      // members/moderators, and later confirms who's a real villager"
+      // rule from the brief. Regular users can never promote
+      // themselves or badge themselves as confirmed.
+      //
+      // Two narrow exceptions let a signed-in user update their OWN
+      // doc without an admin in the loop:
+      //
+      //  1. firstVerifiedAt, restricted, reconfirmedAt,
+      //     lastReverifySentAt — what lets the day-3 email-
+      //     reconfirmation check (run from onAuthReady on every page)
+      //     record "verified at X" and later "restricted"/"reconfirmed".
+      //
+      //  2. name + nameChangedAt, together — lets someone fix a typo
+      //     from sign-up, or set a real name if their profile was ever
+      //     created via account.html's "Set up your profile" repair
+      //     button (which has no name field of its own, so it falls
+      //     back to their email). Rate-limited to once every 15 days,
+      //     enforced here rather than trusting the page's own cooldown
+      //     UI, since that's easy to route around by calling Firestore
+      //     directly. resource.data's nameChangedAt is the PREVIOUS
+      //     value (before this write) — missing or null both mean
+      //     "never changed before", so the very first edit is always
+      //     allowed. Read via .get('nameChangedAt', null) rather than
+      //     a plain .nameChangedAt, same reasoning as
+      //     isActiveMember()'s .get('restricted', false) above: any
+      //     account that existed before this field did simply doesn't
+      //     have it yet, and reading a genuinely missing key directly
+      //     throws (denying the edit) instead of just treating it as
+      //     absent.
+      //
+      // hasOnly() on each branch is what keeps these two exceptions
+      // narrow — someone can't sneak a role/status change in alongside
+      // a legitimate name edit, since a single update can only ever
+      // match one branch's exact field set.
+      allow update: if isAdmin()
+                    || (
+                         isSignedIn() && request.auth.uid == uid
+                         && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['firstVerifiedAt', 'restricted', 'reconfirmedAt', 'lastReverifySentAt'])
+                       )
+                    || (
+                         isSignedIn() && request.auth.uid == uid
+                         && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['name', 'nameChangedAt'])
+                         && request.resource.data.name is string
+                         && request.resource.data.name.size() > 0
+                         && request.resource.data.name.size() <= 80
+                         && request.resource.data.nameChangedAt == request.time
+                         && (
+                              resource.data.get('nameChangedAt', null) == null
+                              || request.time > resource.data.nameChangedAt + duration.value(15, 'd')
+                            )
+                       );
+
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------
+    // news/{id} — submitted news / announcements / events
+    // ------------------------------------------------------------------
+    match /news/{id} {
+
+      // An approved member/moderator/admin can create a new
+      // submission, but only as their own, with at most 3 thumbnails.
+      // Members and moderators must start "pending" (nobody but an
+      // admin can publish their own news directly). Admins are
+      // allowed to create straight into "published", since they're
+      // the ones who'd be approving it anyway. isActiveMember() (not
+      // just isApproved()) is used here so a day-3-restricted account
+      // (see users/{uid} above) can't submit until it reconfirms.
+      allow create: if isActiveMember()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.thumbnails.size() <= 3
+                    && (
+                         request.resource.data.status == 'pending'
+                         || (request.resource.data.status == 'published' && isAdmin())
+                       );
+
+      // Reading: published news is public (news.html shows it to
+      // everyone, signed in or not). Authors can also read their own
+      // pending/rejected submissions (for account.html's "your
+      // submissions" list). Moderators/admins can read everything,
+      // since they need to see pending items to review them.
+      allow read: if resource.data.status == 'published'
+                  || (isSignedIn() && resource.data.authorId == request.auth.uid)
+                  || isAdminOrModerator();
+
+      // Approve/reject (status, moderatorComment, moderatorId,
+      // reviewedAt): an admin can update any pending item, including
+      // one of their own (though in practice they'd just create it
+      // already published). A moderator can update anyone ELSE's
+      // pending item, but NOT their own — that needs a different
+      // moderator or an admin, so a moderator can't rubber-stamp
+      // their own submission.
+      allow update: if isAdmin()
+                    || (isModerator() && resource.data.authorId != request.auth.uid);
+
+      allow delete: if isAdmin();
+
+      // ------------------------------------------------------------
+      // news/{id}/photos/{photoId} — full-size version of each photo
+      // ------------------------------------------------------------
+      match /photos/{photoId} {
+
+        // Only the news item's own author may add its photos, right
+        // after creating the parent document (which may already be
+        // "published" if they're an admin, or still "pending"
+        // otherwise) — either way, get() confirms they're the author.
+        allow create: if isSignedIn()
+                      && get(/databases/$(database)/documents/news/$(id)).data.authorId == request.auth.uid;
+
+        // Readable by exactly the same people who can read the
+        // parent news document: the public (once published), the
+        // author themself, or a moderator/admin.
+        allow read: if get(/databases/$(database)/documents/news/$(id)).data.status == 'published'
+                    || (isSignedIn() && get(/databases/$(database)/documents/news/$(id)).data.authorId == request.auth.uid)
+                    || isAdminOrModerator();
+
+        // Full-size photos are never edited after submission — only
+        // an admin can remove one (e.g. moderating out a single bad
+        // image without deleting the whole post).
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // memorials/{id} — "In Memoriam" death announcements
+    // (in-memoriam.html). Fields: name (string, optional if
+    // relationTag is filled in instead), relationTag (e.g. "S/O
+    // ..." — required if name is left blank; at least one of the
+    // two must be present so every announcement can be identified by
+    // someone), tagLine (short identifying phrase, e.g. "Owner of
+    // Chaudhary Dhaba"), dateOfDeath, deathHouseLocation,
+    // janazaConfirmed (boolean — whether the submitter said the
+    // Namaz-e-Janaza date/time was confirmed ("Yes") or only an
+    // estimate ("No") at submission time), janazaDate (timestamp,
+    // date-only — always required, exact or estimated) and janazaTime
+    // (string, "HH:MM" — required only when janazaConfirmed is true;
+    // optional estimate otherwise, since a rough day is often known
+    // before a time is). janazaLocation, qabrastanLocation,
+    // contactNumber (optional — see the rule below, only ever
+    // meaningful when authorRole was moderator/admin), photo (single
+    // base64 string, optional), notes (additional free text, e.g.
+    // Qul/Chelum dates), authorId, authorName, authorRole (the
+    // author's role AT THE TIME of submission — snapshotted so
+    // in-memoriam.html's "only show the contact number if a
+    // moderator/admin added it" rule still holds even if that
+    // person's role changes later), status ("pending" | "published" |
+    // "rejected"), moderatorComment, moderatorId, reviewedAt,
+    // createdAt.
+    // ------------------------------------------------------------------
+    match /memorials/{id} {
+
+      // Same idea as news: an active member/moderator/admin can
+      // submit, but only as their own. Unlike news, moderators (not
+      // just admins) may also publish directly — per the brief,
+      // "moderator/admin-only posting" is a first-class path here,
+      // alongside "member submits, needs review". A member's own
+      // submission must always start "pending".
+      //
+      // The contactNumber restriction is enforced here too, not just
+      // hidden in the form: a plain member can only ever submit it as
+      // null/empty, regardless of what their browser sends — only a
+      // moderator/admin-authored doc may carry a real value. This
+      // matches authorRole, which must truthfully reflect the
+      // submitter's OWN current role (checked against myProfile(),
+      // not just trusted from the request). janazaDate is always
+      // required; janazaTime is only required when janazaConfirmed is
+      // true (an unconfirmed/estimated submission can leave the time
+      // blank).
+      allow create: if isActiveMember()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.authorRole == myProfile().role
+                    && (
+                         request.resource.data.contactNumber == null
+                         || isAdminOrModerator()
+                       )
+                    && (
+                         request.resource.data.name != null
+                         || request.resource.data.relationTag != null
+                       )
+                    && request.resource.data.janazaDate != null
+                    && (
+                         request.resource.data.janazaConfirmed == false
+                         || request.resource.data.janazaTime != null
+                       )
+                    // Date of death can never be in the future — the
+                    // form's own date picker already caps this at
+                    // today, this is just the same rule enforced
+                    // server-side too. Allowing one extra day of slack
+                    // (rather than comparing directly against
+                    // request.time) matters because the date picker
+                    // only ever sends a date, not a time — the client
+                    // turns that into a Timestamp at UTC midnight of
+                    // that calendar day. For anyone in a timezone
+                    // AHEAD of UTC (e.g. Pakistan, UTC+5), their LOCAL
+                    // "today" can still be "tomorrow" in UTC for a few
+                    // hours after their local midnight, which without
+                    // this slack would make a perfectly valid
+                    // same-day submission look like it's dated in the
+                    // future and get rejected. A full day of slack
+                    // comfortably covers every real-world UTC offset
+                    // (up to UTC+14) while still catching genuinely
+                    // future-dated submissions.
+                    && request.resource.data.dateOfDeath <= request.time + duration.value(1, 'd')
+                    && (
+                         request.resource.data.status == 'pending'
+                         || (request.resource.data.status == 'published' && isAdminOrModerator())
+                       );
+
+      // Reading: published memorials are public — in-memoriam.html
+      // (and the homepage banner) show these to every visitor, signed
+      // in or not, same as published news. Authors can read their own
+      // pending/rejected ones; moderators/admins can read everything
+      // to review the queue.
+      allow read: if resource.data.status == 'published'
+                  || (isSignedIn() && resource.data.authorId == request.auth.uid)
+                  || isAdminOrModerator();
+
+      // Update permissions are split three ways:
+      //
+      // 1. Admin can change anything, anytime — including deleting or
+      //    correcting the janaza date/time on ANY memorial regardless
+      //    of its status or its janazaConfirmed flag.
+      //
+      // 2. A moderator reviewing someone ELSE's submission (never
+      //    their own) may only touch the review fields — status,
+      //    moderatorComment, moderatorId, reviewedAt. Moderators
+      //    cannot change janazaDate/janazaTime at all, on anyone's
+      //    submission; that's now admin-only or a one-time
+      //    author correction (see 3).
+      //
+      // 3. The ORIGINAL AUTHOR — member, moderator, or admin, doesn't
+      //    matter which — gets exactly ONE later correction to their
+      //    own estimated janaza date/time, and only if they marked it
+      //    unconfirmed at submission (janazaConfirmed == false). That
+      //    edit must flip janazaConfirmed to true, which is what makes
+      //    it a ONE-TIME correction: once true, this same clause no
+      //    longer matches (resource.data.janazaConfirmed == false
+      //    fails), so the author can never edit it again themselves —
+      //    same as if they'd picked "Yes" from the start. Touching
+      //    only janazaDate/janazaTime/janazaConfirmed also means a
+      //    member can't use this path to alter anything else on their
+      //    own post without going through moderation.
+      //
+      //    This window ALSO auto-closes at the end of the originally
+      //    estimated day, even if never used — request.time must be
+      //    before the day after resource.data.janazaDate (i.e. through
+      //    11:59pm on the estimated day itself, UTC). Past that, this
+      //    clause stops matching on its own, same effect as if
+      //    janazaConfirmed had flipped to true — except it stays
+      //    false, since that flip is reserved for an actual edit or an
+      //    original "Yes".
+      allow update: if isAdmin()
+                    || (
+                         isModerator()
+                         && resource.data.authorId != request.auth.uid
+                         && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['status', 'moderatorComment', 'moderatorId', 'reviewedAt'])
+                       )
+                    || (
+                         resource.data.authorId == request.auth.uid
+                         && resource.data.janazaConfirmed == false
+                         && request.resource.data.janazaConfirmed == true
+                         && request.time < resource.data.janazaDate + duration.value(1, 'd')
+                         && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['janazaDate', 'janazaTime', 'janazaConfirmed'])
+                       );
+
+      allow delete: if isAdmin();
+    }
+
+    // (suggest-update.html), reviewed only by admins (admin.html)
+    // ------------------------------------------------------------------
+    match /pageSuggestions/{id} {
+
+      allow create: if isActiveMember()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.thumbnails.size() <= 3;
+
+      // Author can read their own; only admins can see/review the
+      // full list (unlike news, moderators do not review these).
+      allow read: if (isSignedIn() && resource.data.authorId == request.auth.uid) || isAdmin();
+
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+
+      match /photos/{photoId} {
+        allow create: if isSignedIn()
+                      && get(/databases/$(database)/documents/pageSuggestions/$(id)).data.authorId == request.auth.uid;
+
+        allow read: if (isSignedIn() && get(/databases/$(database)/documents/pageSuggestions/$(id)).data.authorId == request.auth.uid)
+                    || isAdmin();
+
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // cardLikes/{cardId}/likedBy/{uid} — the ❤️ Like / 🤲 Condolences
+    // button available on cards across the site (card-actions.js).
+    // There is deliberately no separate counter document/field anywhere
+    // — the count shown on a card is a live count() aggregation query
+    // over this subcollection, so it can never drift out of sync (no
+    // counter to increment/decrement badly, no race between two people
+    // reacting at the same moment). A doc's mere existence at
+    // cardLikes/{cardId}/likedBy/{uid} IS "this person reacted to this
+    // card" — there's nothing else to store.
+    //
+    // cardId itself is just a string chosen by whoever added the
+    // data-card-id attribute to that card in the HTML (see
+    // card-actions.js) — it is NOT validated against any other
+    // collection here, since cards live all over the site (static
+    // pages, news, memorials) with no single source of truth to check
+    // against. Anyone can technically create a like under a made-up
+    // cardId that matches nothing real; that's harmless — it would
+    // just never be seen, since no card on the site would ever query
+    // for it.
+    // ------------------------------------------------------------------
+    match /cardLikes/{cardId}/likedBy/{uid} {
+
+      // Public read, signed in or not — this is what lets a visitor
+      // see "24 people liked this" without an account, and lets the
+      // page check "did *I* already react to this?" for whoever's
+      // signed in.
+      allow read: if true;
+
+      // You may only ever create/delete YOUR OWN reaction — never on
+      // anyone else's behalf. hasOnly() keeps the doc to just the one
+      // field it needs, and the serverTimestamp check (== request.time)
+      // makes sure createdAt can't be backdated or forged to some
+      // arbitrary value.
+      allow create: if isSignedIn()
+                    && request.auth.uid == uid
+                    && request.resource.data.keys().hasOnly(['createdAt'])
+                    && request.resource.data.createdAt == request.time;
+
+      // "Un-reacting" is just deleting your own doc.
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+
+      // A reaction is either there or it isn't — never edited in place.
+      allow update: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // suggestions/{id} — messages from contact.html's "Send a note"
+    // form. No sign-in required to send one; only admins can read them.
+    // ------------------------------------------------------------------
+    match /suggestions/{id} {
+
+      // Open to anyone, signed in or not — this form works without an
+      // account. Capped field lengths guard against someone using it
+      // to stuff huge junk data into the database.
+      allow create: if request.resource.data.status == 'new'
+                    && request.resource.data.name.size() <= 200
+                    && request.resource.data.email.size() <= 200
+                    && request.resource.data.message.size() <= 5000;
+
+      // Only admins can see or manage the inbox of messages.
+      allow read: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------
+    // notifications/{id} — feeds the bell icon in every page's header
+    // (notifications.js). Only PERSONAL notifications live here — see
+    // the top-of-file note above for why the other two counts the bell
+    // shows (review queue size; new public posts) are computed live
+    // from existing collections instead of stored as documents.
+    // ------------------------------------------------------------------
+    match /notifications/{id} {
+
+      // Only a moderator or admin can create one — every event type
+      // that generates a personal notification (approve, reject,
+      // correct someone else's janaza info, approve an account) is
+      // itself a moderator/admin action. A plain member never writes
+      // here, even about their own activity.
+      allow create: if isAdminOrModerator()
+                    && request.resource.data.recipientId is string
+                    && request.resource.data.type is string
+                    && request.resource.data.title is string
+                    && request.resource.data.read == false;
+
+      // Recipients only ever read their own.
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+
+      // The only update a recipient should ever make is flipping
+      // `read` to true (clicking it, or opening the bell) — never
+      // touching the title/message/link of something written on their
+      // behalf.
+      allow update: if isSignedIn()
+                    && resource.data.recipientId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------
+    // popupSlides/{id} — the site-wide welcome popup shown on
+    // index.html, news.html and the account-system pages (at most
+    // once every 24 hours per visitor, via a localStorage timestamp
+    // on the page itself — this collection has no notion of "once a
+    // day", it just holds the slide content). Fields: image (base64
+    // string, optional), description, active (bool), order (number),
+    // createdAt. Public read since it's shown to every visitor,
+    // signed in or not; only admins manage it (from account.html).
+    // ------------------------------------------------------------------
+    match /popupSlides/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}
